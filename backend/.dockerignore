@@ -1,0 +1,6 @@
+config.json
+credentials.json
+**/__pycache__
+.idea
+.DS_Store
+cornell-course-sphere-data

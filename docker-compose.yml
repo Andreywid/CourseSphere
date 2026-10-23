@@ -1,0 +1,40 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    # Keep in sync with databaseURL in frontend/src/firebaseConfig.ts.
+    environment:
+      FIREBASE_DB_URL: https://coursesphere-andreywid-default-rtdb.firebaseio.com
+    # Secrets stay out of the image. create_host_path: false makes compose fail
+    # if a file is missing instead of creating an empty directory in its place.
+    volumes:
+      - type: bind
+        source: ./backend/config.json
+        target: /app/config.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./backend/credentials.json
+        target: /app/credentials.json
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - coursesphere-net
+
+  frontend:
+    # Temporary: the production build (frontend/Dockerfile) fails on TypeScript errors.
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    networks:
+      - coursesphere-net
+
+networks:
+  coursesphere-net:
+    name: coursesphere-net
+    driver: bridge
