@@ -1,0 +1,33 @@
+backend-1  |  * Serving Flask app 'endpoints'
+backend-1  |  * Debug mode: off
+backend-1  | WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+backend-1  |  * Running on all addresses (0.0.0.0)
+backend-1  |  * Running on http://127.0.0.1:5000
+backend-1  |  * Running on http://172.18.0.2:5000
+backend-1  | Press CTRL+C to quit
+backend-1  | 172.18.0.1 - - [23/Oct/2026 02:58:36] "OPTIONS /theactualbackendlink HTTP/1.1" 404 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 02:58:36] "OPTIONS /theactualbackendlink HTTP/1.1" 404 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 02:59:00] "OPTIONS /users/create HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 02:59:02] "POST /users/create HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 02:59:03] "OPTIONS /theactualbackendlink HTTP/1.1" 404 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 02:59:03] "OPTIONS /theactualbackendlink HTTP/1.1" 404 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:00:27] "OPTIONS /users/info?id_token=eyJ...[REDACTED] HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:00:27] "OPTIONS /users/info?id_token=eyJ...[REDACTED] HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:00:29] "GET /users/info?id_token=eyJ...[REDACTED] HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:00:29] "GET /users/info?id_token=eyJ...[REDACTED] HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:00:53] "OPTIONS /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:00:53] "POST /users/info HTTP/1.1" 200 -
+backend-1  |  * Serving Flask app 'endpoints'
+backend-1  |  * Debug mode: off
+backend-1  | WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+backend-1  |  * Running on all addresses (0.0.0.0)
+backend-1  |  * Running on http://127.0.0.1:5000
+backend-1  |  * Running on http://172.18.0.3:5000
+backend-1  | Press CTRL+C to quit
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:39:04] "OPTIONS /theactualbackendlink HTTP/1.1" 404 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:39:04] "OPTIONS /theactualbackendlink HTTP/1.1" 404 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:39:15] "OPTIONS /users/query HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:39:15] "OPTIONS /hash HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:39:15] "POST /users/query HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:39:15] "POST /hash HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [23/Oct/2026 03:39:15] "POST /hash HTTP/1.1" 200 -
