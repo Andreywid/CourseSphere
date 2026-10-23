@@ -1,8 +1,14 @@
 # firebase.py
+import os
 import firebase_admin
 from firebase_admin import credentials, auth, db
 firebase_credentials = credentials.Certificate("./credentials.json")
-database_url = "https://coursesphere-8bd9a-default-rtdb.firebaseio.com"
+database_url = os.environ.get("FIREBASE_DB_URL", "").strip()
+if not database_url:
+    raise RuntimeError(
+        "FIREBASE_DB_URL is not set. Set it to the Realtime Database URL of your Firebase project "
+        "(the databaseURL in frontend/src/firebaseConfig.ts)."
+    )
 firebase_admin.initialize_app(firebase_credentials, {"databaseURL": database_url})
 firebase_app = firebase_admin.get_app()
 
