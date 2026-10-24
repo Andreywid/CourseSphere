@@ -14,6 +14,7 @@ Esta pasta guarda os prints e logs que sustentam o [relatório](../report.md).
 | `baseline/baseline-profile-save-200.png` | Deve mostrar o salvamento do perfil, com `POST /users/info` em HTTP 200. | Baseline (2.4), ACH-06 | A adicionar |
 | `baseline/baseline-dashboard.png` | Deve mostrar o dashboard depois do login. | Baseline (2.4) | A adicionar |
 | `baseline/baseline-query.png` | Deve mostrar o chat depois da pergunta, com a bolha do bot vazia (resposta fixa do `QueryManager`) e o toast "Successfully retrieved bot response!". O toast não prova o status HTTP (ACH-07); o status está no log. | Baseline (2.4) | A adicionar |
+| `tools/` | Saídas de SAST e SCA (`semgrep.json`, `bandit.json`, `pip-audit.txt`, `pip-audit.json`, `npm-audit.json`) e, em `tools/README.md`, o que cada ferramenta rodou e o mapeamento dos hits nos achados. Sem segredos: os scans leram uma cópia sem `credentials.json` e `config.json`. | Seção 2.3 e candidatos a novos achados | Capturado |
 
 ## Antes de salvar um arquivo
 

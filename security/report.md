@@ -45,7 +45,7 @@ O ambiente é isolado em Docker e definido em `docker-compose.yml`.
 - DAST: OWASP ZAP.
 - Classificação alinhada ao OWASP Top 10 2021; severidade por CVSS 3.1.
 
-As ferramentas acima são o plano de trabalho e ainda não foram executadas. Os achados da seção 3 vêm de leitura de código e de observação do ambiente de baseline.
+SAST (Semgrep e Bandit) e SCA (pip-audit e npm audit) foram executados em 23/10/2026; as saídas e o mapeamento nos achados estão em [`evidence/tools/README.md`](evidence/tools/README.md). O DAST (OWASP ZAP) ainda não foi executado. Os achados ACH-01 a ACH-10 vêm de leitura de código e de observação do ambiente de baseline; os candidatos novos apontados pelas ferramentas ainda não estão na seção 3.
 
 ### 2.4 Baseline (Fase 0)
 
@@ -67,7 +67,7 @@ Comportamentos originais observados (não são regressões da Fase 0; os arquivo
 - **Resposta da query sem conteúdo.** O `QueryManager` é um stub e devolve a string `"Fake implementation"`. O frontend lê `result.botResponse` (`api.ts:198`), campo que não existe nessa resposta e fica indefinido.
 - **Toast de sucesso sem checar `response.ok`.** `api.ts:167-169` exibe "Successfully saved your information!" qualquer que seja o status HTTP, o que escondeu o HTTP 400 da primeira execução. Ver ACH-07.
 
-Alterações feitas na Fase 0 em relação ao repositório original:
+Alterações em relação ao repositório original:
 
 - `backend/main.py`: a chamada à OpenAI e o `print` do fim do módulo foram para `if __name__ == "__main__":` (linhas 60-62). Assim, `from main import hashFunction` (`endpoints.py:5`) não dispara chamada de rede no import. As funções não foram alteradas.
 - `frontend/Dockerfile`: base trocada de `node:16-alpine` para `node:20-alpine`, porque o Vite 5 exige Node 18 ou superior.
@@ -75,6 +75,7 @@ Alterações feitas na Fase 0 em relação ao repositório original:
 - `.gitignore`: inclusão de `credentials.json`.
 - `backend/firebase.py` e `docker-compose.yml`: a URL do RTDB passou a vir da variável de ambiente `FIREBASE_DB_URL` (ACH-06). Feita depois da primeira execução do baseline, que expôs o HTTP 400, e antes da validação final.
 - Arquivos novos: `docker-compose.yml`, `backend/Dockerfile`, `backend/.dockerignore`, `backend/config.example.json`, `frontend/Dockerfile.dev`.
+- Higiene do repositório (23/10/2026): removidos arquivos `.DS_Store`, pastas `.idea/` e um `package-lock.json` vazio na raiz, versionados por engano no original. No `.gitignore`, `*config.json` virou `config.json`, porque o padrão antigo também casava com `frontend/tsconfig.json`, e `__pycache__/` foi incluído. O `README.md` foi reescrito para a avaliação.
 
 ## 3. Achados
 
