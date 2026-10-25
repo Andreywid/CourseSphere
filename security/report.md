@@ -1,6 +1,6 @@
 # Relatório Técnico de Segurança e Confiabilidade - CourseSphere
 
-> **Status:** rascunho preenchido de forma incremental. Fase 0 (ambiente isolado e baseline) concluída em 23/10/2026; as seções 1, 5 e 6 são placeholders e a seção 4 lista as correções aplicadas até agora.
+> **Status:** rascunho preenchido de forma incremental. Fase 0 (ambiente isolado e baseline) concluída em 23/10/2026; na Fase 2, os achados ACH-01, 03, 08, 09, 10 e 11 foram formalizados em 24/10/2026 e o ACH-12 em 25/10/2026, quando também foram evidenciadas as reproduções do ACH-03 e do ACH-09; as seções 1, 5 e 6 são placeholders e a seção 4 lista as correções aplicadas ou preparadas até agora.
 > O documento não contém segredos. Prints e logs ficam em [`evidence/`](evidence/README.md). O inventário de rotas que abre a Fase 1 está em [`recon.md`](recon.md).
 
 ## 1. Sumário executivo
@@ -32,7 +32,7 @@ O ambiente é isolado em Docker e definido em `docker-compose.yml`.
 
 - Os dois serviços ficam na rede bridge dedicada `coursesphere-net`.
 - Os segredos `backend/config.json` e `backend/credentials.json` são montados como volumes somente leitura em `/app`. Ficam fora da imagem (`backend/.dockerignore`) e do git (`.gitignore`). O `config.json` do ambiente tem uma chave placeholder, porque a OpenAI não é chamada em runtime.
-- O backend sobe pelo CLI do Flask, então o `app.run(debug=True)` de `endpoints.py:108` não é executado e o debug fica desligado no container.
+- O backend sobe pelo CLI do Flask, então o `app.run(debug=True)` de `endpoints.py:108` não é executado e o debug fica desligado no container (ACH-11).
 - O frontend usa o servidor de desenvolvimento porque o build de produção (`frontend/Dockerfile`) falha com 15 erros do compilador TypeScript (`tsc -b`) no código original.
 - **Firebase.** O candidato usa um projeto Firebase próprio, para poder testar e corrigir o controle de acesso nas fases seguintes. O frontend (`frontend/src/firebaseConfig.ts`), a credencial de serviço do backend e a URL do RTDB do backend apontam para esse projeto.
 - **URL do RTDB.** O código original fixava a URL em `backend/firebase.py`, apontando para o projeto Firebase do autor do repositório (commit `68e6a44`), o que causou HTTP 400 nas rotas de perfil na primeira execução do baseline. A URL agora vem da variável de ambiente `FIREBASE_DB_URL`, definida no serviço `backend` do `docker-compose.yml` com o `databaseURL` de `frontend/src/firebaseConfig.ts`. Ver ACH-06 e a seção 4.
@@ -45,7 +45,7 @@ O ambiente é isolado em Docker e definido em `docker-compose.yml`.
 - DAST: OWASP ZAP.
 - Classificação alinhada ao OWASP Top 10 2021; severidade por CVSS 3.1.
 
-SAST (Semgrep e Bandit) e SCA (pip-audit e npm audit) foram executados em 23/10/2026; as saídas e o mapeamento nos achados estão em [`evidence/tools/README.md`](evidence/tools/README.md). O DAST (OWASP ZAP) ainda não foi executado. Os achados ACH-01 a ACH-10 vêm de leitura de código e de observação do ambiente de baseline; os candidatos novos apontados pelas ferramentas ainda não estão na seção 3.
+SAST (Semgrep e Bandit) e SCA (pip-audit e npm audit) foram executados em 23/10/2026; as saídas e o mapeamento nos achados estão em [`evidence/tools/README.md`](evidence/tools/README.md). O DAST (OWASP ZAP) ainda não foi executado. Os achados vêm de leitura de código e de observação do ambiente de baseline, e o ACH-11 foi apontado pelo Semgrep e pelo Bandit; os demais candidatos novos das ferramentas ainda não estão na seção 3.
 
 ### 2.4 Baseline (Fase 0)
 
@@ -79,29 +79,63 @@ Alterações em relação ao repositório original:
 
 ## 3. Achados
 
-Rascunhos da Fase 0. Cada item traz a descrição factual e a localização no código, sem exploração. Esta versão não tem CVSS; a severidade é definida na Fase 2, e ACH-04 e ACH-06 trazem só uma classificação preliminar. As evidências de cada achado entram em `security/evidence/<ID>/`.
+Formalização entre 24/10/2026 e 25/10/2026. Os achados ACH-01, 03, 08, 09, 10, 11 e 12 trazem CWE, OWASP Top 10 2021, reprodução, impacto de negócio e causa raiz, e CVSS 3.1 quando aplicável (ACH-01 e ACH-09 têm só a severidade). ACH-04, 05, 06 e 07 seguem como rascunho da Fase 0 (ACH-04 e ACH-06 só com classificação preliminar). O ACH-02 foi consolidado no ACH-03. As reproduções descrevem os passos para a banca repetir, sem payload armado. A tabela abaixo está ordenada por prioridade. As evidências de cada achado ficam em `security/evidence/<ID>/` e as saídas das ferramentas em [`evidence/tools/`](evidence/tools/README.md).
 
-### 3.1 ACH-01 — Container do backend executa como root
+| # | ID | Achado | CVSS 3.1 | Severidade | Situação |
+|---|---|---|---|---|---|
+| 1 | ACH-12 | Regras do Realtime Database abertas (modo de teste) | 9.8 | Crítico | Aberto; correção preparada, não publicada |
+| 2 | ACH-08 | `id_token` na URL e no log do Flask | 6.5 | Médio | Aberto |
+| 3 | ACH-03 | Vazamento de detalhe de erro ao cliente | 5.3 | Médio | Aberto |
+| 4 | ACH-11 | Modo debug do Flask habilitado | 7.4 | Alto (inerente) | Aberto, latente no container; quick win |
+| 5 | ACH-01 | Container executa como root | Não atribuído | Baixo | Aberto |
+| 6 | ACH-09 | `/users/query`: autenticação opcional quebrada (fail-open) | Não atribuído | Baixo | Latente; hardening |
+| 7 | ACH-10 | SQL montado por f-string (blueprint inativo) | 7.5 | Alto (inerente) | Latente e não funcional |
+| — | ACH-04 | Endpoint placeholder `/theactualbackendlink` | A definir | Baixo (preliminar) | Aberto |
+| — | ACH-05 | Cadastro aceita senha de 6 caracteres | A definir | A avaliar | A avaliar |
+| — | ACH-06 | URL do RTDB fixa no código | A definir | Menor (preliminar) | Corrigido e validado |
+| — | ACH-07 | Falha silenciosa no cliente | A definir | A definir | Aberto |
+| — | ACH-02 | Consolidado no ACH-03 | — | — | — |
 
-- **Localização:** `backend/Dockerfile` (sem instrução `USER`; o processo sobe no `CMD`, linha 16).
-- **Descrição:** a imagem do backend não define usuário não-root. O campo `User` da imagem construída está vazio, ou seja, o Flask roda como root dentro do container.
-- **Observação:** o `Dockerfile` do backend foi criado na Fase 0 (o repositório original não tinha). `frontend/Dockerfile` e `frontend/Dockerfile.dev` também não têm `USER`, e a imagem do frontend também roda como root.
-- **Severidade:** a definir na Fase 2.
+Ordem por risco prático: primeiro o ACH-12, crítico e presente no ambiente; depois o que se manifesta no ambiente fornecido (ACH-08 e ACH-03, por score), o que depende do modo de execução (ACH-11, quick win), o hardening (ACH-01 e ACH-09, ambos de severidade Baixa, sendo o ACH-09 latente) e, por último, o ACH-10, latente e não funcional (blueprint inativo, e `db.py` impede o retorno dos dados) apesar do score inerente alto. ACH-04 a ACH-07 ainda não têm CVSS e ficam fora do ranking.
 
-### 3.2 ACH-02 — `POST /hash` sem header `Authorization` retorna HTTP 500 com exceção interna
+Severidade "inerente" é o score do código como escrito, assumindo as condições do achado (ACH-10: blueprint ativado; ACH-11: execução por `python endpoints.py`). O ambiente fornecido não está nessas condições.
 
-- **Localização:** `backend/endpoints.py:77` (extração do token) e `:82-83` (tratamento da exceção).
-- **Descrição:** a rota faz `request.headers.get('Authorization').split('Bearer ')[1]` sem verificar se o header existe nem se tem o prefixo `Bearer `. Sem o header, `get` devolve `None` e `.split` levanta `AttributeError`. Com o header sem o prefixo, o índice `[1]` levanta `IndexError`. O `except Exception` da rota devolve HTTP 500 com `{"error": str(e)}`.
-- **Observado:** requisição sem o header: HTTP 500 e corpo com `'NoneType' object has no attribute 'split'`. Header sem o prefixo `Bearer `: HTTP 500 e corpo com `list index out of range`.
-- **Observação:** o mesmo trecho existe em `endpoints.py:88` (`POST /chats/<chat_id>/messages`) e `:99` (`DELETE /chats/<chat_id>`). Nessas rotas o `except` devolve HTTP 400 (linhas 94 e 104), com a mesma exceção dentro da mensagem.
-- **Severidade:** a definir na Fase 2.
+### 3.1 ACH-01 — Container executa como root
 
-### 3.3 ACH-03 — Respostas de erro devolvem `str(e)` ao cliente
+- **Classificação:** Baixo (hardening e defesa em profundidade). CVSS 3.1 não atribuído. Justificativa: o item não é explorável sozinho; amplifica o impacto de qualquer execução de código no container.
+- **CWE:** CWE-250 (execução com privilégios desnecessários).
+- **OWASP Top 10 2021:** A05:2021 (configuração incorreta de segurança).
+- **Descrição:** as imagens do backend e do frontend não definem usuário não-root, então o Flask e o Vite rodam como root dentro do container. O campo `User` das duas imagens construídas está vazio. O `backend/Dockerfile` foi criado na Fase 0; o repositório original não tinha.
+- **Localização:** `backend/Dockerfile` (sem `USER`; `CMD` na linha 16), `frontend/Dockerfile.dev` (sem `USER`; `CMD` na linha 12) e `frontend/Dockerfile` (sem `USER`; `CMD` na linha 24). O Semgrep acusa `missing-user` em `backend/Dockerfile:16`.
+- **Reprodução:**
+  1. Subir o ambiente com `docker compose up --build`.
+  2. Executar `docker compose exec backend id` e `docker compose exec frontend id`.
+  3. Observar `uid=0(root)` nas duas saídas.
+- **Evidência:** [`evidence/tools/semgrep.json`](evidence/tools/semgrep.json) (regra `missing-user`).
+- **Impacto de negócio:** um atacante que execute código no container o faz como root, o que piora o escape do container e a movimentação lateral. A ação de hardening fica para a fase seguinte.
+- **Causa raiz:** as imagens não criam nem selecionam um usuário não-root.
+- **Situação:** Aberto.
 
-- **Localização:** `backend/endpoints.py:28, 53, 63, 72, 83, 94, 104`, uma por rota (as 7 rotas). As mensagens passam por `backend/firebase.py`, que reencapsula cada exceção com `str(e)` (linhas 27, 36, 44, 52, 61, 78, 93, 109, 124, 138, 156, 164, na numeração atual).
-- **Descrição:** todas as rotas capturam `Exception` e devolvem o texto da exceção no corpo da resposta (HTTP 400; HTTP 500 em `/hash`). O texto vem de Python e do `firebase_admin` e não é filtrado.
-- **Observado:** `GET /users/info` com `id_token` inválido: HTTP 400 e corpo `Error getting user info: Error verifying ID token: Wrong number of segments in token: b'x'`, que inclui o valor enviado. `POST /users/create` com senha de 5 caracteres: HTTP 400 e a mensagem de validação do `firebase_admin`.
-- **Severidade:** a definir na Fase 2.
+### 3.2 ACH-02 — Consolidado no ACH-03
+
+O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exceção interna) passou a ser o caso principal do ACH-03. O ID ACH-02 não é mais usado.
+
+### 3.3 ACH-03 — Vazamento de detalhe de erro ao cliente (inclui o antigo ACH-02)
+
+- **CVSS 3.1:** `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N` = **5.3 (Médio)**. Justificativa: detalhe interno de exceção devolvido ao cliente, trivialmente disparável e útil para reconhecimento.
+- **CWE:** CWE-209 (mensagem de erro com informação sensível) e CWE-20 (validação de entrada imprópria).
+- **OWASP Top 10 2021:** A05:2021 (configuração incorreta de segurança) e A09:2021 (falhas de registro e monitoramento de segurança).
+- **Descrição:** as 7 rotas de `endpoints.py` capturam `Exception` e devolvem o texto da exceção no corpo da resposta (HTTP 400; HTTP 500 em `/hash`). O texto vem de Python e do `firebase_admin`, que `firebase.py` reencapsula com `str(e)`, e não é filtrado. O caso mais claro é `POST /hash`: a rota faz `request.headers.get('Authorization').split('Bearer ')[1]` sem verificar se o header existe nem se tem o prefixo `Bearer `. Sem o header, `.split` levanta `AttributeError`; com o header sem o prefixo, o índice `[1]` levanta `IndexError`. O `except Exception` devolve HTTP 500 com `{"error": str(e)}`. O mesmo trecho existe em `POST /chats/<chat_id>/messages` e `DELETE /chats/<chat_id>`, onde a resposta é HTTP 400.
+- **Localização:** `backend/endpoints.py:28, 53, 63, 72, 83, 94, 104` (`str(e)` nas 7 rotas); `backend/endpoints.py:77` (extração do token em `/hash`, tratada em `:82-83`) e `:88`, `:99` (mesmo trecho nas rotas de chat); `backend/firebase.py:27, 36, 44, 52, 61, 78, 93, 109, 124, 138, 156, 164` (reencapsulamento com `str(e)`).
+- **Reprodução:**
+  1. Com o ambiente no ar, enviar `POST /hash` sem o header `Authorization`: `curl -i -X POST http://localhost:5000/hash`.
+  2. Observar HTTP 500 e, no corpo, `{"error":"'NoneType' object has no attribute 'split'"}`.
+  3. Repetir com `-H 'Authorization: Basic abc'` (sem o prefixo `Bearer `) e observar HTTP 500 com `list index out of range`.
+  4. Nas demais rotas, `GET /users/info?id_token=x` retorna HTTP 400 com `Error getting user info: Error verifying ID token: Wrong number of segments in token: b'x'`, que inclui o valor enviado.
+- **Evidência:** [`evidence/ACH-03/hash-no-auth-500.txt`](evidence/ACH-03/hash-no-auth-500.txt), capturada em 25/10/2026 (passos 1 e 2: HTTP 500 com a exceção interna). Os passos 3 e 4 não foram capturados.
+- **Impacto de negócio:** expõe internals (bibliotecas, estrutura do código) a um cliente não autenticado, o que facilita um ataque dirigido.
+- **Causa raiz:** exceções capturadas de forma genérica, com `str(e)` devolvido ao cliente, e entrada não validada no `/hash`.
+- **Situação:** Aberto.
 
 ### 3.4 ACH-04 — Endpoint placeholder `/theactualbackendlink` chamado pelo frontend
 
@@ -137,37 +171,108 @@ Rascunhos da Fase 0. Cada item traz a descrição factual e a localização no c
 
 ### 3.8 ACH-08 — `id_token` na URL de `GET /users/info` e registrado no log do Flask
 
-- **Localização:** `frontend/src/api.ts:91` (monta a URL com `?id_token=${idToken}`) e `backend/endpoints.py:58` (lê `request.args.get("id_token")`). O backend não tem configuração de log própria, então vale o log de acesso padrão do servidor Flask.
-- **Descrição:** o ID token do Firebase, credencial que o backend usa para identificar o usuário (`Firebase.verify_id_token`, `endpoints.py:59`), vai na query string. O log de acesso grava a linha de requisição inteira, e o token fica em texto claro no log do backend. As demais rotas autenticadas recebem o token no header `Authorization` (`/hash` e `/chats/...`) ou no corpo da requisição (`POST /users/info`, `api.ts:157`).
-- **Observado:** o log de acesso do backend registra `GET /users/info?id_token=<valor> HTTP/1.1` e também o preflight `OPTIONS` da mesma URL. Antes da redação, o valor tinha 932 caracteres e prefixo de JWT (`eyJ`).
-- **Evidência:** [`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log) (linhas `GET` e `OPTIONS /users/info?id_token=eyJ...[REDACTED]`; o valor completo foi redigido antes de salvar).
-- **Severidade:** a definir na Fase 2.
+- **CVSS 3.1:** `CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:L/A:N` = **6.5 (Médio)**. Justificativa: credencial bearer exposta em query string e registrada em log; a exploração depende de alcançar o canal de vazamento dentro da janela de validade do token.
+- **CWE:** CWE-598 (uso de GET com dado sensível na query string) e CWE-532 (informação sensível em arquivo de log).
+- **OWASP Top 10 2021:** A02:2021 (falhas criptográficas).
+- **Descrição:** o frontend envia o ID token do Firebase na query string de um `GET`. O backend lê o token de `request.args`, e o log de acesso padrão do Flask grava a linha de requisição inteira, então o token fica em texto claro no log do backend. As demais rotas autenticadas recebem o token no header `Authorization` (`/hash` e `/chats/...`) ou no corpo da requisição (`POST /users/info`, `api.ts:157`).
+- **Localização:** `frontend/src/api.ts:91` (monta a URL com `?id_token=${idToken}`); `backend/endpoints.py:58` em `get_user_info` (`request.args.get("id_token")`) e `:59` (`Firebase.verify_id_token`). O backend não tem configuração de log própria; vale o log de acesso padrão.
+- **Reprodução:**
+  1. Subir o ambiente, fazer login e abrir o Dashboard (`/dashboard`), que dispara `GET /users/info?id_token=<token>`.
+  2. Executar `docker compose logs backend` e procurar as linhas `GET /users/info?id_token=...`.
+  3. Observar o token inteiro na URL registrada no log.
+- **Evidência:** [`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log), com o valor do token redigido antes de salvar (o valor original tinha 932 caracteres e prefixo de JWT). Ao repetir a reprodução, redigir o token antes de salvar qualquer log (ver [`evidence/README.md`](evidence/README.md)).
+- **Impacto de negócio:** um token roubado (log, histórico do navegador, `Referer`) permite impersonar o usuário durante a janela de validade, lendo e alterando os dados dele.
+- **Causa raiz:** credencial na query string de uma requisição `GET`.
+- **Situação:** Aberto. Correção planejada para a Fase 4.
 
-### 3.9 ACH-09 — `/users/query` sem autenticação efetiva
+### 3.9 ACH-09 — Autenticação opcional quebrada em `/users/query` (fail-open e sem limite de taxa)
 
-- **Localização:** `frontend/src/api.ts:184` (`const idToken = user?.getIdToken();`, sem `await`), `:185` (`{ query, idToken }`) e `:190` (header `Authorization`); `backend/endpoints.py:65-72` (rota, com a leitura de `id_token` na linha 69) e `backend/firebase.py:64-68` (`try_get_user_info`).
-- **Descrição:** `getIdToken()` devolve uma Promise, e o frontend não a aguarda. No corpo JSON ela vira `{}` (campo `idToken`) e no header vira `Bearer [object Promise]`. O backend procura outra chave (`id_token`), não lê o header `Authorization` e usa `Firebase.try_get_user_info`, que devolve `None` em qualquer falha. A rota segue com `user_info=None`, chama o `QueryManager` e responde HTTP 200 em vez de rejeitar a requisição sem autenticação.
-- **Indício no baseline:** o log do baseline (seção 2.4) registra `POST /users/query` com HTTP 200 para a requisição do próprio frontend, que não leva `id_token` válido. É só um indício: a prova de que a rota não exige autenticação, com uma requisição sem token, fica para a Fase 2.
-- **Status:** confirmar reproduzindo uma requisição sem autenticação na Fase 2.
-- **Severidade:** a definir na Fase 2.
+- **Classificação:** Baixo, latente. CVSS 3.1 não atribuído. Justificativa: o endpoint é público por desenho e hoje devolve só um stub; os defeitos são de hardening e ganham peso quando a lógica for concluída. O item foi reenquadrado: antes era tratado como ausência de autenticação (CWE-306, 5.3).
+- **CWE:** CWE-636 (falha aberta, em vez de falhar de forma segura).
+- **OWASP Top 10 2021:** A07:2021 (falhas de identificação e autenticação).
+- **Descrição:** `/users/query` é público por desenho: `fetchCourseSphereResponse` não chama `ensureUserLoggedIn`, ao contrário das demais chamadas autenticadas do `api.ts` (`:87, :143, :224, :257, :279, :299`); o `QueryManager` prevê consulta sem usuário (`query_manager.py:101`); e a leitura do usuário é opcional (`Firebase.try_get_user_info`). O problema real é que a autenticação opcional não funciona: (1) o frontend envia `idToken` como Promise não aguardada e com nome diferente do que o backend lê (`id_token`), então nem um usuário logado é reconhecido; (2) um token inválido ou ausente é rebaixado em silêncio para anônimo, porque `try_get_user_info` devolve `None` em qualquer falha e a rota responde 200 (fail-open); (3) o endpoint público não tem limite de taxa, o que é latente porque o handler é um stub. O teste `hasUserData = (self.user_data is not None)` (`query_manager.py:101`) nunca é falso, porque `:47` sempre cria o objeto de usuário, mesmo com usuário ausente: o ramo anônimo previsto no código não é detectado.
+- **Localização:** `backend/endpoints.py:65-72` (rota; `:69` lê `id_token`); `backend/firebase.py:64-68` (`try_get_user_info` devolve `None` em qualquer falha); `backend/query_manager.py:47` e `:101`; `frontend/src/api.ts:182-185` (função sem `ensureUserLoggedIn`, `idToken` sem `await` e com nome divergente) e `:190` (header `Authorization`).
+- **Reprodução:**
+  1. Com o ambiente no ar, enviar `POST /users/query` com um `id_token` inválido no corpo: `curl -i -X POST http://localhost:5000/users/query -H 'Content-Type: application/json' -d '{"query":"test","id_token":"invalido"}'`.
+  2. Observar HTTP 200 com a resposta fixa `"Fake implementation"`: o token inválido não é rejeitado (fail-open). O mesmo ocorre sem token e com um header `Authorization` inválido.
+  3. No navegador, na aba Rede, observar a chamada feita pelo frontend logado: o corpo traz `idToken: {}` (a Promise serializada) e nenhum `id_token`, e o header vai como `Bearer [object Promise]`. A serialização foi verificada isoladamente em Node 20.
+- **Evidência:** [`evidence/ACH-09/users-query-no-auth.txt`](evidence/ACH-09/users-query-no-auth.txt), capturada em 25/10/2026 (sem token e sem `Authorization`, HTTP 200). Ela continua válida: mostra que o endpoint responde a anônimos, o comportamento público esperado. O fail-open com token inválido foi verificado em teste local isolado e não tem arquivo de evidência.
+- **Impacto de negócio:** usuários logados são tratados como anônimos e um token inválido não gera erro. Quando a lógica passar a usar dados do usuário, a personalização não funcionará e as falhas de autenticação ficarão invisíveis; sem limite de taxa, um endpoint público fica exposto a abuso quando o handler passar a executar trabalho caro.
+- **Causa raiz:** o contrato de autenticação opcional não está implementado de ponta a ponta: o cliente envia o token de forma errada e o servidor trata qualquer falha como anônimo.
+- **Situação:** Latente. Hardening, fora do conjunto de correções prioritárias.
 
 ### 3.10 ACH-10 — SQL montado por f-string em `blueprints/courses.py` (blueprint inativo)
 
-- **Localização:** `backend/blueprints/courses.py:30, 47, 64, 80, 96, 112` (consultas montadas com f-string) e `backend/db.py:9` (`cursor.execute(query)`, sem parâmetros).
-- **Descrição:** os valores vindos da URL são interpolados direto no texto SQL. Nas rotas com parâmetro `string` (`semester`, `department` e `instructor`; linhas 80, 96 e 112) o valor fica entre aspas simples, o que permite alterar a consulta (padrão de injeção de SQL). Nas rotas com `<int:...>` (linhas 30, 47 e 64) o conversor do Flask restringe o valor a dígitos.
-- **Condição de ativação (inativo hoje):** o código só é alcançável se (1) `courses_bp` for importado e registrado em `endpoints.py`, onde hoje só existe o comentário `#app.register_blueprint(courses_bp)` (linha 11); (2) os imports `backend.db` e `backend.endpoints` (`courses.py:3-4`) passarem a resolver, o que hoje não ocorre porque a aplicação roda a partir do diretório `backend/` e não existe um pacote `backend`; e (3) existir o banco SQLite no caminho de `db.py:4` (`cournell-course-sphere-data/roster_reviews.sqlite.db`): o repositório não traz arquivo SQLite, e o nome da pasta está grafado diferente da pasta de dados (`cornell-course-sphere-data`).
-- **Observado:** na imagem do backend, a tabela de rotas da aplicação não contém nenhuma rota `/courses`, e `import backend.db` falha com `ModuleNotFoundError`.
-- **Severidade:** a definir na Fase 2; depende da ativação.
+- **CVSS 3.1:** `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N` = **7.5 (Alto, inerente)**. Justificativa: concatenar entrada em SQL permite ler o banco; o `execute` do `sqlite3` roda uma única instrução, então não há escrita. O score vale para o código como escrito: hoje o blueprint é inalcançável (ver pré-condições) e os dados são de cursos, públicos.
+- **CWE:** CWE-89 (injeção de SQL).
+- **OWASP Top 10 2021:** A03:2021 (injeção).
+- **Descrição:** os valores vindos da URL são interpolados por f-string no texto SQL e executados por `cursor.execute(query)`, sem parametrização. Nas rotas com parâmetro `string` (`semester`, `department` e `instructor`) o valor fica entre aspas simples. As rotas `<int:...>` usam o mesmo padrão, mas o conversor do Flask limita o valor a dígitos. Confirmado por Semgrep (`tainted-sql-string`, 6 hits) e Bandit (B608, 6 hits). As três rotas `string` compartilham a mesma regra de URL, e na prática só `semester` é alcançada ([`recon.md`](recon.md), seção 2).
+- **Localização:** `backend/blueprints/courses.py:80, 96, 112` (rotas `string`) e `:30, 47, 64` (rotas `int`); `backend/db.py:9` (`cursor.execute(query)`).
+- **Pré-condições de ativação (hoje nenhuma é atendida):**
+  1. O blueprint ser importado e registrado em `endpoints.py`, onde hoje só existe o comentário `#app.register_blueprint(courses_bp)` (linha 11).
+  2. Os imports `backend.db` e `backend.endpoints` (`courses.py:3-4`) resolverem: no container a aplicação roda de `/app` e não existe o pacote `backend`.
+  3. Existir o banco SQLite no caminho de `db.py:4` (`cournell-course-sphere-data/roster_reviews.sqlite.db`): o repositório não traz arquivo SQLite, e o nome da pasta está grafado diferente da pasta de dados (`cornell-course-sphere-data`).
+- **Reprodução (condicional):**
+  1. Atender as três pré-condições.
+  2. Chamar `GET /courses/<valor>` com um valor que contenha uma aspa simples.
+  3. Observar que a aspa fecha o literal da string SQL e altera a consulta: o SQLite a rejeita com `unrecognized token`, registrado no log do backend.
+- **Observação:** mesmo com as três pré-condições, `db.execute_query` fecha a conexão antes de devolver o cursor (`db.py:11-12`), e o `.fetchall()` das rotas falha com `Cannot operate on a closed database` (verificado em teste local com os arquivos reais, banco temporário). Hoje o resultado da consulta não chega ao cliente: o padrão de injeção continua presente e ganha efeito prático se esse defeito for corrigido.
+- **Evidência:** Semgrep e Bandit em [`evidence/tools/`](evidence/tools/README.md).
+- **Impacto de negócio:** se ativado, leitura não autorizada do banco.
+- **Causa raiz:** consulta montada por f-string, sem parametrização.
+- **Situação:** Latente e não funcional: o blueprint está inativo e, mesmo ativado, `db.py:11-12` impede que o resultado das consultas chegue ao cliente.
+
+### 3.11 ACH-11 — Modo debug do Flask habilitado no ponto de entrada
+
+- **CVSS 3.1:** `CVSS:3.1/AV:L/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H` = **7.4 (Alto, inerente)**. Justificativa: `app.run(debug=True)` expõe o debugger interativo do Werkzeug (execução de código potencial, protegida por PIN, daí `AC:H`) e stack traces. No modo padrão (`python endpoints.py`) o servidor escuta só em `127.0.0.1`, porque `app.run` não recebe `host`, então o vetor é local. Se o processo for exposto (bind em `0.0.0.0` ou proxy), o vetor sobe para `AV:N` e o score para 8.1. O container do projeto roda pelo CLI do Flask com debug desligado; o score reflete o modo padrão do app.
+- **CWE:** CWE-489 (código de depuração ativo) e CWE-215 (informação sensível em código de depuração).
+- **OWASP Top 10 2021:** A05:2021 (configuração incorreta de segurança).
+- **Descrição:** `endpoints.py` termina com `app.run(debug=True)` dentro de `if __name__ == '__main__'`. Executado assim, o Flask liga o debugger do Werkzeug: uma exceção não tratada devolve a página com o stack trace completo, e o console interativo fica protegido por PIN (o log mostra `Debugger PIN`). Confirmado por Semgrep (`debug-enabled`) e Bandit (B201, HIGH).
+- **Localização:** `backend/endpoints.py:108` (dentro do bloco `__main__` de `:107-108`).
+- **Reprodução:**
+  1. A partir de `backend/`, com as dependências, `config.json`, `credentials.json` e `FIREBASE_DB_URL` presentes, executar `python endpoints.py` (modo padrão do app). O log mostra `Debug mode: on` e `Debugger is active!`.
+  2. Provocar uma exceção não tratada: enviar `POST /users/create` com o corpo JSON `null` (a leitura do JSON fica fora do `try`, `endpoints.py:18-20`).
+  3. Observar a página do debugger do Werkzeug, com o stack trace completo (HTTP 500).
+  4. Repetir o mesmo pedido no container fornecido (CLI do Flask, `Debug mode: off`) e observar apenas `Internal Server Error`.
+- **Evidência:** Semgrep e Bandit em [`evidence/tools/`](evidence/tools/README.md); o log do container fornecido mostra `Debug mode: off` ([`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log)).
+- **Impacto de negócio:** exposição de internals e, no pior caso, execução de código no servidor.
+- **Causa raiz:** debug ligado no código, sem controle por configuração.
+- **Situação:** Aberto, latente: o container fornecido não é afetado. Quick win: o ajuste é pontual, na linha 108 de `endpoints.py`.
+
+### 3.12 ACH-12 — Regras do Realtime Database abertas (modo de teste)
+
+- **CVSS 3.1:** `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H` = **9.8 (Crítico)**. Justificativa: qualquer cliente sem credenciais lê, altera e apaga os dados do banco pela API REST, sem interação do usuário e sem privilégio algum.
+- **CWE:** CWE-284 (controle de acesso impróprio) e CWE-862 (autorização ausente).
+- **OWASP Top 10 2021:** A01:2021 (quebra de controle de acesso).
+- **Descrição:** as regras do Realtime Database estão no modo de teste padrão: `.read` e `.write` condicionados apenas a uma data (`now < 1795230000000`, 21/11/2026), sem checar autenticação. Até essa data qualquer pessoa pode ler e escrever no banco. O `databaseURL` é público (`frontend/src/firebaseConfig.ts:4`, entregue ao navegador), então um cliente não autenticado acessa o banco pela API REST, contornando o backend e toda a verificação de token. As regras não estavam no repositório; ficavam só no console do Firebase.
+- **Localização:** regras do RTDB do projeto Firebase, exportadas em [`evidence/ACH-12/database-rules.json`](evidence/ACH-12/database-rules.json); `databaseURL` em `frontend/src/firebaseConfig.ts:4`. Não é um defeito do código do backend: o Admin SDK (`backend/firebase.py`) ignora as regras.
+- **Reprodução (nível de relatório, sem dump):**
+  1. Ler o `databaseURL` em `frontend/src/firebaseConfig.ts`, que é público.
+  2. Enviar ao endpoint REST do banco uma requisição de leitura sem credenciais, limitada às chaves de primeiro nível (parâmetro `shallow=true`), sem baixar dados.
+  3. Observar que a requisição é aceita, em vez de negada com `Permission denied`. Essa requisição não foi executada para este relatório; a evidência primária é o export das regras.
+- **Evidência:** [`evidence/ACH-12/database-rules.json`](evidence/ACH-12/database-rules.json), obtido em 25/10/2026 por leitura das regras do projeto com a conta de serviço (somente leitura, sem acesso a dados). Está no formato do console, com comentários, e não menciona `auth`.
+- **Impacto de negócio:** leitura, alteração e exclusão de todos os dados de todos os usuários, sem login.
+- **Causa raiz:** regras não escopadas por usuário e não versionadas.
+- **Correção:** preparada no repositório (`database.rules.json` e `firebase.json`); ver a seção 4.2.
+- **Situação:** Aberto: a correção está no repositório, mas ainda não foi publicada no projeto Firebase.
 
 ## 4. Correções
 
-Correções aplicadas até agora. As demais entram aqui conforme forem feitas.
+Correções aplicadas ou preparadas até agora. As demais entram aqui conforme forem feitas.
 
 ### 4.1 ACH-06 — URL do RTDB externalizada
 
 - **Alteração:** `backend/firebase.py` (linhas 6-11) lê a URL de `FIREBASE_DB_URL`, sem valor padrão, e levanta `RuntimeError` com mensagem explícita se a variável estiver ausente ou vazia. O `docker-compose.yml` define a variável no serviço `backend` com o `databaseURL` de `frontend/src/firebaseConfig.ts`, que é a fonte única do valor.
 - **Verificação local** (container sem rede, com credencial de teste descartável): sem a variável, ou com ela vazia, o backend não sobe e exibe a mensagem de erro; com a variável, sobe e o `firebase_admin` usa exatamente o valor informado. O valor do `docker-compose.yml` é igual ao `databaseURL` de `frontend/src/firebaseConfig.ts`.
 - **Validação:** em 23/10/2026, com credenciais reais, `POST /users/info` e `GET /users/info` retornaram HTTP 200 ([`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log)).
+
+### 4.2 ACH-12 — Regras do Realtime Database restritas
+
+- **Alteração:** dois arquivos novos na raiz do repositório. `database.rules.json` define `.read` e `.write` como `false`, e `firebase.json` aponta para ele (`database.rules`). As regras passam a ser versionadas.
+- **Por que `false` e não regras por usuário:** o frontend não lê nem escreve no RTDB. Ele importa `getDatabase` (`api.ts:4`, `Nav.tsx:20`, `UserChats.tsx:4`) e cria a variável `database` (`api.ts:9`, `Nav.tsx:24`, `UserChats.tsx:10`), mas nunca a usa: não há chamada a `ref`, `get`, `set` nem `onValue` em `frontend/src`. Todo acesso ao RTDB passa pelo backend (`firebase.py`), que usa o Admin SDK e ignora as regras (comportamento documentado do Firebase). Regras por `auth.uid === $uid` em `users/$uid` só seriam necessárias se o frontend passasse a acessar o banco direto.
+- **Aplicação (pendente):** as regras só valem depois de publicadas no projeto Firebase: `firebase deploy --only database --project <id-do-projeto>` com o Firebase CLI autenticado, ou colando o conteúdo de `database.rules.json` no console (Realtime Database, aba Regras). Hoje o repositório tem o arquivo, mas o projeto continua com as regras originais.
+- **Verificação pós-aplicação (a executar):** (1) a requisição sem credenciais da reprodução do ACH-12 passa a ser negada com `Permission denied`; (2) o fluxo do baseline continua funcionando, com `POST /users/info` e `GET /users/info` retornando HTTP 200.
+- **Validação local:** os dois arquivos são JSON válido e `firebase.json` aponta para um arquivo existente. A publicação e o efeito das regras não foram testados.
 
 ## 5. Confiabilidade (SRE)
 

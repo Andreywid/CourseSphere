@@ -18,6 +18,7 @@ O foco do trabalho não é a funcionalidade, e sim identificar e corrigir falhas
 | Ambiente de teste isolado em Docker | [`docker-compose.yml`](docker-compose.yml), [`backend/Dockerfile`](backend/Dockerfile), [`frontend/Dockerfile.dev`](frontend/Dockerfile.dev) |
 | Relatório técnico: escopo, metodologia, achados, severidade e correções | [`security/report.md`](security/report.md) |
 | Inventário de rotas e superfície de ataque | [`security/recon.md`](security/recon.md) |
+| Regras do Realtime Database restritas (correção do ACH-12) | [`database.rules.json`](database.rules.json), [`firebase.json`](firebase.json) |
 | Evidências (logs e prints) e saídas das ferramentas | [`security/evidence/`](security/evidence/README.md) |
 
 Metodologia: análise manual guiada pelo OWASP WSTG, mais SAST, SCA e DAST, com classificação alinhada ao OWASP Top 10 2021 e severidade por CVSS 3.1 (relatório, seção 2).
@@ -28,8 +29,8 @@ Metodologia: análise manual guiada pelo OWASP WSTG, mais SAST, SCA e DAST, com 
 |---|---|---|
 | 0 | Ambiente isolado e baseline | Concluída em 23/10/2026 |
 | 1 | Reconhecimento (inventário de rotas) | Concluída em 23/10/2026 |
-| 2 | SAST, SCA, DAST e formalização dos achados (CVSS 3.1, reprodução e impacto) | Em andamento: SAST e SCA concluídos |
-| Próximas | Correções, hardening e confiabilidade (SRE) | Planejadas; o ACH-06 já foi corrigido |
+| 2 | SAST, SCA, DAST e formalização dos achados (CVSS 3.1, reprodução e impacto) | Em andamento: SAST e SCA concluídos; ACH-01, 03, 08, 09, 10, 11 e 12 formalizados; evidência do ACH-03, ACH-09 e ACH-12 capturada |
+| Próximas | Correções, hardening e confiabilidade (SRE) | Planejadas; o ACH-06 já foi corrigido e a correção do ACH-12 está preparada, aguardando publicação no Firebase |
 
 ## Como rodar
 
@@ -54,6 +55,7 @@ Ficam em `backend/`, fora da imagem e do git (estão no `.gitignore`).
 
 - `frontend/src/firebaseConfig.ts`: cole a configuração web do seu projeto.
 - `docker-compose.yml`: ajuste `FIREBASE_DB_URL` para o `databaseURL` do seu projeto, o mesmo valor do `firebaseConfig.ts`. Sem essa variável o backend não sobe.
+- Regras do Realtime Database: publique `database.rules.json`, que nega todo acesso de cliente (o backend usa o Admin SDK e continua funcionando; o frontend não acessa o banco), com `firebase deploy --only database --project <id-do-projeto>`. Sem isso o banco mantém as regras do projeto, que no modo de teste são abertas (ACH-12).
 
 ### 3. Subir
 
@@ -101,22 +103,28 @@ As ferramentas rodaram em containers Docker efêmeros, sobre uma cópia do códi
 
 ## Achados
 
-Os achados ficam no relatório (seção 3), cada um com ID `ACH-xx`. A severidade (CVSS 3.1) e os passos de reprodução entram na Fase 2.
+Os achados ficam no relatório (seção 3), cada um com ID `ACH-xx`, na ordem de prioridade abaixo. Os formalizados trazem CWE, OWASP Top 10 2021, passos de reprodução, impacto de negócio e causa raiz, e CVSS 3.1 quando aplicável; os demais seguem como rascunho.
 
-| ID | Achado | Situação |
-|---|---|---|
-| ACH-01 | Container do backend executa como root | Aberto |
-| ACH-02 | `POST /hash` sem `Authorization` retorna HTTP 500 com exceção interna | Aberto |
-| ACH-03 | Respostas de erro devolvem `str(e)` ao cliente | Aberto |
-| ACH-04 | Frontend chama o endpoint placeholder `/theactualbackendlink` | Aberto (qualidade de código) |
-| ACH-05 | Cadastro aceita senha de 6 caracteres | A avaliar |
-| ACH-06 | URL do RTDB fixa no código, acoplada ao projeto do autor | Corrigido e validado |
-| ACH-07 | Falha silenciosa no cliente: sucesso exibido com HTTP 400 | Aberto |
-| ACH-08 | `id_token` na URL de `GET /users/info` e no log do Flask | Aberto |
-| ACH-09 | `/users/query` sem autenticação efetiva | A confirmar na Fase 2 |
-| ACH-10 | SQL montado por f-string no blueprint de cursos | Inativo (blueprint não registrado) |
+| # | ID | Achado | CVSS 3.1 | Severidade | Situação |
+|---|---|---|---|---|---|
+| 1 | ACH-12 | Regras do Realtime Database abertas (modo de teste) | 9.8 | Crítico | Aberto; correção preparada, não publicada |
+| 2 | ACH-08 | `id_token` na URL e no log do Flask | 6.5 | Médio | Aberto |
+| 3 | ACH-03 | Vazamento de detalhe de erro ao cliente | 5.3 | Médio | Aberto |
+| 4 | ACH-11 | Modo debug do Flask habilitado | 7.4 | Alto (inerente) | Aberto, latente no container; quick win |
+| 5 | ACH-01 | Container executa como root | Não atribuído | Baixo | Aberto |
+| 6 | ACH-09 | `/users/query`: autenticação opcional quebrada (fail-open) | Não atribuído | Baixo | Latente; hardening |
+| 7 | ACH-10 | SQL montado por f-string (blueprint inativo) | 7.5 | Alto (inerente) | Latente e não funcional |
+| — | ACH-04 | Endpoint placeholder `/theactualbackendlink` | A definir | Baixo (preliminar) | Aberto |
+| — | ACH-05 | Cadastro aceita senha de 6 caracteres | A definir | A avaliar | A avaliar |
+| — | ACH-06 | URL do RTDB fixa no código | A definir | Menor (preliminar) | Corrigido e validado |
+| — | ACH-07 | Falha silenciosa no cliente | A definir | A definir | Aberto |
+| — | ACH-02 | Consolidado no ACH-03 | — | — | — |
 
-As ferramentas apontaram também candidatos novos, como `debug=True` latente e dependências do frontend com avisos conhecidos. Eles estão em [`security/evidence/tools/README.md`](security/evidence/tools/README.md) e ainda não entraram no relatório.
+Ordem por risco prático: primeiro o ACH-12, crítico e presente no ambiente; depois o que se manifesta no ambiente fornecido (ACH-08 e ACH-03, por score), o que depende do modo de execução (ACH-11, quick win), o hardening (ACH-01 e ACH-09, ambos de severidade Baixa, sendo o ACH-09 latente) e, por último, o ACH-10, latente e não funcional (blueprint inativo, e `db.py` impede o retorno dos dados) apesar do score inerente alto. ACH-04 a ACH-07 ainda não têm CVSS e ficam fora do ranking.
+
+Severidade "inerente" é o score do código como escrito, assumindo as condições do achado (ACH-10: blueprint ativado; ACH-11: execução por `python endpoints.py`). O ambiente fornecido não está nessas condições.
+
+As ferramentas apontaram também candidatos novos, como uso de `random` não criptográfico, HTTP em claro com URL fixa e dependências do frontend com avisos conhecidos. Eles estão em [`security/evidence/tools/README.md`](security/evidence/tools/README.md) e ainda não entraram no relatório.
 
 ## Alterações em relação ao repositório original
 
@@ -126,6 +134,7 @@ Mudanças mínimas, registradas no relatório (seções 2.4 e 4):
 - `backend/firebase.py`: a URL do RTDB vem de `FIREBASE_DB_URL`, sem valor padrão (correção do ACH-06).
 - `frontend/Dockerfile`: base `node:20-alpine`, porque o Vite 5 exige Node 18 ou superior.
 - `frontend/src/firebaseConfig.ts`: configuração do projeto Firebase usado na avaliação.
+- `database.rules.json` e `firebase.json`: regras do Realtime Database versionadas, com acesso de cliente negado (correção do ACH-12, ainda não publicada no projeto Firebase).
 - Higiene do repositório: removidos arquivos `.DS_Store`, pastas `.idea/` e um `package-lock.json` vazio na raiz, versionados por engano no original. No `.gitignore`, o padrão `*config.json` virou `config.json`, porque também casava com `frontend/tsconfig.json`, e `__pycache__/` foi incluído.
 
 ## Estrutura do repositório
@@ -140,6 +149,8 @@ frontend/                       aplicação React
   Dockerfile.dev                Vite em modo de desenvolvimento, usado pelo Compose
 experiment/                     notebook de experimento do repositório original
 docker-compose.yml              ambiente isolado (backend e frontend)
+database.rules.json             regras do Realtime Database (acesso de cliente negado)
+firebase.json                   aponta o Firebase CLI para as regras
 security/
   report.md                     relatório técnico
   recon.md                      inventário de rotas e superfície de ataque

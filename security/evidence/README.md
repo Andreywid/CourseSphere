@@ -3,7 +3,7 @@
 Esta pasta guarda os prints e logs que sustentam o [relatório](../report.md).
 
 - `baseline/`: evidências do ambiente de referência (Fase 0).
-- `ACH-NN/`: uma pasta por achado, com o mesmo ID usado na seção 3 do relatório (ex.: `ACH-02/`). É criada quando houver evidência.
+- `ACH-NN/`: uma pasta por achado, com o mesmo ID usado na seção 3 do relatório (ex.: `ACH-03/`). É criada quando houver evidência.
 
 ## Arquivos
 
@@ -15,6 +15,9 @@ Esta pasta guarda os prints e logs que sustentam o [relatório](../report.md).
 | `baseline/baseline-dashboard.png` | Deve mostrar o dashboard depois do login. | Baseline (2.4) | A adicionar |
 | `baseline/baseline-query.png` | Deve mostrar o chat depois da pergunta, com a bolha do bot vazia (resposta fixa do `QueryManager`) e o toast "Successfully retrieved bot response!". O toast não prova o status HTTP (ACH-07); o status está no log. | Baseline (2.4) | A adicionar |
 | `tools/` | Saídas de SAST e SCA (`semgrep.json`, `bandit.json`, `pip-audit.txt`, `pip-audit.json`, `npm-audit.json`) e, em `tools/README.md`, o que cada ferramenta rodou e o mapeamento dos hits nos achados. Sem segredos: os scans leram uma cópia sem `credentials.json` e `config.json`. | Seção 2.3 e candidatos a novos achados | Capturado |
+| `ACH-03/hash-no-auth-500.txt` | Saída de `curl -i -X POST http://localhost:5000/hash`, sem o header `Authorization`: HTTP 500 e, no corpo, a exceção interna (`'NoneType' object has no attribute 'split'`). A primeira linha é o comando, e os `\r` do HTTP foram removidos. | ACH-03 | Capturado em 25/10/2026 |
+| `ACH-09/users-query-no-auth.txt` | Saída de `curl -i -X POST http://localhost:5000/users/query` com `{"query":"test"}`, sem token e sem `Authorization`: HTTP 200 e a resposta fixa `"Fake implementation"`. A primeira linha é o comando, e os `\r` do HTTP foram removidos. | ACH-09 | Capturado em 25/10/2026 |
+| `ACH-12/database-rules.json` | Regras do Realtime Database do projeto antes da correção, lidas com a conta de serviço (somente leitura, sem acesso a dados): `.read` e `.write` condicionados só a `now < 1795230000000` (21/11/2026), sem checar `auth`. Está no formato do console, com comentários e vírgula final, então não é JSON estrito. | ACH-12 | Capturado em 25/10/2026 |
 
 ## Antes de salvar um arquivo
 

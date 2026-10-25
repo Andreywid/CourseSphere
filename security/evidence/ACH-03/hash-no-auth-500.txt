@@ -1,0 +1,11 @@
+$ curl -i -X POST http://localhost:5000/hash
+
+HTTP/1.1 500 INTERNAL SERVER ERROR
+Server: Werkzeug/3.1.9 Python/3.12.15
+Date: Sun, 25 Oct 2026 21:54:40 GMT
+Content-Type: application/json
+Content-Length: 55
+Access-Control-Allow-Origin: *
+Connection: close
+
+{"error":"'NoneType' object has no attribute 'split'"}

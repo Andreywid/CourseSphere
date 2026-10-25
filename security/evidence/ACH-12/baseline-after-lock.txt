@@ -1,0 +1,16 @@
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:03:46] "[33mOPTIONS /theactualbackendlink HTTP/1.1[0m" 404 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:03:46] "[33mOPTIONS /theactualbackendlink HTTP/1.1[0m" 404 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:06] "[33mOPTIONS /theactualbackendlink HTTP/1.1[0m" 404 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:06] "[33mOPTIONS /theactualbackendlink HTTP/1.1[0m" 404 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:16] "OPTIONS /users/info?id_token=<REDACTED> HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:16] "OPTIONS /users/info?id_token=<REDACTED> HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:16] "GET /users/info?id_token=<REDACTED> HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:17] "GET /users/info?id_token=<REDACTED> HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:22] "OPTIONS /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:22] "POST /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:32] "OPTIONS /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:33] "POST /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:37] "OPTIONS /users/info?id_token=<REDACTED> HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:37] "OPTIONS /users/info?id_token=<REDACTED> HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:37] "GET /users/info?id_token=<REDACTED> HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [25/Oct/2026 23:04:37] "GET /users/info?id_token=<REDACTED> HTTP/1.1" 200 -

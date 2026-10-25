@@ -1,6 +1,6 @@
 # Evidências de SAST e SCA
 
-Saídas das ferramentas automáticas rodadas em 23/10/2026 e o mapeamento dos resultados nos achados do [relatório](../../report.md). Não há CVSS aqui: as severidades abaixo são as que cada ferramenta reporta, e a classificação do relatório fica para a Fase 2. O DAST (OWASP ZAP) não foi executado.
+Saídas das ferramentas automáticas rodadas em 23/10/2026 e o mapeamento dos resultados nos achados do [relatório](../../report.md). Não há CVSS aqui: as severidades abaixo são as que cada ferramenta reporta, e a classificação CVSS 3.1 dos achados está no relatório (seção 3). O DAST (OWASP ZAP) não foi executado.
 
 ## Como foi rodado
 
@@ -93,15 +93,15 @@ Pela maior severidade de cada pacote (ferramenta): 2 critical, 23 high, 16 moder
 |---|---|---|---|
 | Container sem usuário não-root | Semgrep `missing-user` (CWE-250) | `backend/Dockerfile:16` | ACH-01 |
 | SQL montado por f-string | Semgrep `tainted-sql-string` (6) e Bandit B608 (6, CWE-89) | `backend/blueprints/courses.py:30, 47, 64, 80, 96, 112` | ACH-10. As duas ferramentas marcam também as três rotas `<int:...>` (linhas 30, 47 e 64), em que o conversor do Flask limita o valor a dígitos. |
-| `debug=True` | Semgrep `debug-enabled` (CWE-489) e Bandit B201 | `backend/endpoints.py:108` | **Candidato novo.** A linha só roda se o arquivo for executado direto (`python endpoints.py`). No container o Flask sobe pelo CLI e o log mostra `Debug mode: off` ([`backend-baseline.log`](../baseline/backend-baseline.log)). |
-| Gerador pseudoaleatório não criptográfico | Bandit B311 (3, CWE-330) | `backend/main.py:15` e `:16` | **Candidato novo.** `hashFunction` (`main.py:14-18`) gera o ID de `POST /hash` (ACH-02) misturando `random` e `numpy.random` com `secrets.token_hex(16)` (linha 17). O backend só devolve o ID (`endpoints.py:80-81`) e não o usa em decisão de acesso; a relevância fica a avaliar. O `random.shuffle` da linha 11 não é sinalizado pelo Bandit. |
+| `debug=True` | Semgrep `debug-enabled` (CWE-489) e Bandit B201 | `backend/endpoints.py:108` | **ACH-11.** A linha só roda se o arquivo for executado direto (`python endpoints.py`). No container o Flask sobe pelo CLI e o log mostra `Debug mode: off` ([`backend-baseline.log`](../baseline/backend-baseline.log)). |
+| Gerador pseudoaleatório não criptográfico | Bandit B311 (3, CWE-330) | `backend/main.py:15` e `:16` | **Candidato novo.** `hashFunction` (`main.py:14-18`) gera o ID de `POST /hash` (ACH-03) misturando `random` e `numpy.random` com `secrets.token_hex(16)` (linha 17). O backend só devolve o ID (`endpoints.py:80-81`) e não o usa em decisão de acesso; a relevância fica a avaliar. O `random.shuffle` da linha 11 não é sinalizado pelo Bandit. |
 | `assert` como validação de entrada | Bandit B101 (CWE-703) | `backend/query_manager.py:44` | **Candidato novo.** O `assert` é removido com `python -O`. |
-| HTTP em claro e URL do backend fixa | Semgrep `react-insecure-request` (5, CWE-319) | `frontend/src/api.ts:14, 160, 186, 304` e `frontend/src/components/UserChats/UserChats.tsx:25` | **Candidato novo.** A URL `http://127.0.0.1:5000` aparece fixa em 6 pontos: a regra não marcou `api.ts:91`, que também usa `http://` e é o ACH-08. As chamadas envolvem os ACH-02, 04, 07, 08 e 09. |
-| Chave web do Firebase no código | Semgrep `detected-generic-api-key` (confiança LOW, CWE-798) | `frontend/src/firebaseConfig.ts:2` (`apiKey`) | **Candidato novo (informativo).** É a chave web do Firebase, que acompanha o cliente por desenho. O hit não indica vazamento de `credentials.json`. O que vale checar na Fase 2 são as restrições da chave e as regras do RTDB, que não estão no repositório ([`recon.md`](../../recon.md), seção 4). |
+| HTTP em claro e URL do backend fixa | Semgrep `react-insecure-request` (5, CWE-319) | `frontend/src/api.ts:14, 160, 186, 304` e `frontend/src/components/UserChats/UserChats.tsx:25` | **Candidato novo.** A URL `http://127.0.0.1:5000` aparece fixa em 6 pontos: a regra não marcou `api.ts:91`, que também usa `http://` e é o ACH-08. As chamadas envolvem os ACH-03, 04, 07, 08 e 09. |
+| Chave web do Firebase no código | Semgrep `detected-generic-api-key` (confiança LOW, CWE-798) | `frontend/src/firebaseConfig.ts:2` (`apiKey`) | **Candidato novo (informativo).** É a chave web do Firebase, que acompanha o cliente por desenho. O hit não indica vazamento de `credentials.json`. O que vale checar na Fase 2 são as restrições da chave e as regras do RTDB (ACH-12). |
 | `pip` desatualizado na imagem | pip-audit (6 avisos) | Imagem `coursesphere-backend`, `pip 25.0.1` | **Candidato novo (SCA).** Fica na camada da imagem base, não é dependência da aplicação. |
 | Dependências do frontend com avisos | npm audit (42 pacotes, 104 avisos) | `frontend/package-lock.json` | **Candidato novo (SCA).** Ver a tabela de dependências diretas acima. |
 
-**ACH sem hit de ferramenta:** ACH-02, ACH-03, ACH-04, ACH-05, ACH-06, ACH-07, ACH-08 e ACH-09. São lógica de aplicação, tratamento de erro, autenticação e configuração, que as regras usadas não cobrem. Vieram da leitura do código e do baseline. O ACH-06 já estava corrigido no código escaneado.
+**ACH sem hit de ferramenta:** ACH-03 (que absorveu o ACH-02), ACH-04, ACH-05, ACH-06, ACH-07, ACH-08, ACH-09 e ACH-12. São lógica de aplicação, tratamento de erro, autenticação e configuração, que as regras usadas não cobrem. Vieram da leitura do código e do baseline. O ACH-06 já estava corrigido no código escaneado.
 
 ## Limitações
 
