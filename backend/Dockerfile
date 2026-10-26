@@ -11,6 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Run as a non-root user. The mounted config.json/credentials.json are world-readable (0644),
+# so this user can read them without changing the volume ownership.
+RUN useradd --create-home --uid 10001 appuser
+USER appuser
+
 EXPOSE 5000
 
 CMD ["flask", "--app", "endpoints", "run", "--host", "0.0.0.0", "--port", "5000"]

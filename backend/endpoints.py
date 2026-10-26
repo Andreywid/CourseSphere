@@ -1,12 +1,28 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.exceptions import HTTPException
 from query_manager import QueryManager
 from firebase import Firebase
 from main import hashFunction
 
 app = Flask(__name__)
-CORS(app)
+# CORS restricted to the frontend origin; Authorization must stay allowed for the token header.
+CORS(
+    app,
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+
+# Rate limiting for the endpoints the backend exposes (in-memory store, per client IP).
+limiter = Limiter(get_remote_address, app=app)
+
+@limiter.request_filter
+def exempt_preflight():
+    # CORS preflight must never be rate limited, or the browser flow breaks.
+    return request.method == "OPTIONS"
 
 # TODO: figure out the blueprint thing below
 #app.register_blueprint(courses_bp)
@@ -21,6 +37,7 @@ def get_bearer_token():
     return header[len("Bearer "):].strip()
 
 @app.route("/users/create", methods=["POST"])
+@limiter.limit("5 per minute")
 def create_user():
     data = request.get_json()
     email = data.get("email")
@@ -75,6 +92,7 @@ def get_user_info():
         return error_response("Could not get user info", 400)
   
 @app.route("/users/query", methods=["POST"])
+@limiter.limit("30 per minute")
 def get_user_query():
     try:
         query = request.get_json().get("query")
@@ -85,6 +103,7 @@ def get_user_query():
         return error_response("Could not process query", 400)
 
 @app.route('/hash', methods=['POST'])
+@limiter.limit("60 per minute")
 def generate_message_id():
     id_token = get_bearer_token()
     if not id_token:
@@ -135,4 +154,5 @@ def handle_unexpected(e):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Debug is off by default; set FLASK_DEBUG=1 to enable it locally (never in a deployed env).
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1")

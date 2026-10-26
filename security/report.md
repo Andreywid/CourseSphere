@@ -86,9 +86,9 @@ Formalização entre 24/10/2026 e 25/10/2026. Os achados ACH-01, 03, 08, 09, 10,
 | 1 | ACH-12 | Regras do Realtime Database abertas (modo de teste) | 9.8 | Crítico | Corrigido e validado |
 | 2 | ACH-08 | `id_token` na URL e no log do Flask | 6.5 | Médio | Corrigido e validado |
 | 3 | ACH-03 | Vazamento de detalhe de erro ao cliente | 5.3 | Médio | Corrigido e validado |
-| 4 | ACH-11 | Modo debug do Flask habilitado | 7.4 | Alto (inerente) | Aberto, latente no container; quick win |
-| 5 | ACH-01 | Container executa como root | Não atribuído | Baixo | Aberto |
-| 6 | ACH-09 | `/users/query`: autenticação opcional quebrada (fail-open) | Não atribuído | Baixo | Latente; hardening |
+| 4 | ACH-11 | Modo debug do Flask habilitado | 7.4 | Alto (inerente) | Corrigido (debug off, seção 5.1) |
+| 5 | ACH-01 | Container executa como root | Não atribuído | Baixo | Corrigido (não-root, seção 5.4) |
+| 6 | ACH-09 | `/users/query`: autenticação opcional quebrada (fail-open) | Não atribuído | Baixo | Rate limiting aplicado; fail-open aberto (5.3) |
 | 7 | ACH-10 | SQL montado por f-string (blueprint inativo) | 7.5 | Alto (inerente) | Latente e não funcional |
 | — | ACH-04 | Endpoint placeholder `/theactualbackendlink` | A definir | Baixo (preliminar) | Aberto |
 | — | ACH-05 | Cadastro aceita senha de 6 caracteres | A definir | A avaliar | A avaliar |
@@ -96,7 +96,7 @@ Formalização entre 24/10/2026 e 25/10/2026. Os achados ACH-01, 03, 08, 09, 10,
 | — | ACH-07 | Falha silenciosa no cliente | A definir | A definir | Aberto |
 | — | ACH-02 | Consolidado no ACH-03 | — | — | — |
 
-Ordem por risco prático: primeiro o ACH-12, crítico (corrigido e validado em 25/10/2026); depois o que se manifesta no ambiente fornecido (ACH-08 e ACH-03, corrigidos e validados, na ordem por score), o que depende do modo de execução (ACH-11, quick win), o hardening (ACH-01 e ACH-09, ambos de severidade Baixa, sendo o ACH-09 latente) e, por último, o ACH-10, latente e não funcional (blueprint inativo, e `db.py` impede o retorno dos dados) apesar do score inerente alto. ACH-04 a ACH-07 ainda não têm CVSS e ficam fora do ranking.
+Ordem por risco prático: primeiro o ACH-12, crítico (corrigido e validado em 25/10/2026); depois o que se manifesta no ambiente fornecido (ACH-08 e ACH-03, corrigidos e validados, na ordem por score), o que depende do modo de execução (ACH-11, corrigido na Fase 5), o hardening (ACH-01, corrigido, e ACH-09, endurecido com rate limiting, mas com o fail-open ainda aberto) e, por último, o ACH-10, latente e não funcional (blueprint inativo, e `db.py` impede o retorno dos dados) apesar do score inerente alto. ACH-04 a ACH-07 ainda não têm CVSS e ficam fora do ranking.
 
 Severidade "inerente" é o score do código como escrito, assumindo as condições do achado (ACH-10: blueprint ativado; ACH-11: execução por `python endpoints.py`). O ambiente fornecido não está nessas condições.
 
@@ -114,7 +114,7 @@ Severidade "inerente" é o score do código como escrito, assumindo as condiçõ
 - **Evidência:** [`evidence/tools/semgrep.json`](evidence/tools/semgrep.json) (regra `missing-user`).
 - **Impacto de negócio:** um atacante que execute código no container o faz como root, o que piora o escape do container e a movimentação lateral. A ação de hardening fica para a fase seguinte.
 - **Causa raiz:** as imagens não criam nem selecionam um usuário não-root.
-- **Situação:** Aberto.
+- **Situação:** Corrigido na Fase 5 (container não-root, seção 5.4).
 
 ### 3.2 ACH-02 — Consolidado no ACH-03
 
@@ -201,7 +201,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Evidência:** [`evidence/ACH-09/users-query-no-auth.txt`](evidence/ACH-09/users-query-no-auth.txt), capturada em 25/10/2026 (sem token e sem `Authorization`, HTTP 200). Ela continua válida: mostra que o endpoint responde a anônimos, o comportamento público esperado. O fail-open com token inválido foi verificado em teste local isolado e não tem arquivo de evidência.
 - **Impacto de negócio:** usuários logados são tratados como anônimos e um token inválido não gera erro. Quando a lógica passar a usar dados do usuário, a personalização não funcionará e as falhas de autenticação ficarão invisíveis; sem limite de taxa, um endpoint público fica exposto a abuso quando o handler passar a executar trabalho caro.
 - **Causa raiz:** o contrato de autenticação opcional não está implementado de ponta a ponta: o cliente envia o token de forma errada e o servidor trata qualquer falha como anônimo.
-- **Situação:** Latente. Hardening, fora do conjunto de correções prioritárias.
+- **Situação:** Parcialmente endurecido na Fase 5 — rate limiting aplicado (seção 5.3); o fail-open da autenticação opcional (token como Promise, rebaixamento silencioso) segue aberto.
 
 ### 3.10 ACH-10 — SQL montado por f-string em `blueprints/courses.py` (blueprint inativo)
 
@@ -239,7 +239,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Evidência:** Semgrep e Bandit em [`evidence/tools/`](evidence/tools/README.md); o log do container fornecido mostra `Debug mode: off` ([`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log)).
 - **Impacto de negócio:** exposição de internals e, no pior caso, execução de código no servidor.
 - **Causa raiz:** debug ligado no código, sem controle por configuração.
-- **Situação:** Aberto, latente: o container fornecido não é afetado. Quick win: o ajuste é pontual, na linha 138 de `endpoints.py`. A correção do ACH-03 (errorhandler global) já suprime a página de stack trace nas exceções de rota, mas o debugger segue habilitado e o `/console` exposto; o fix definitivo é desligar o debug.
+- **Situação:** Corrigido na Fase 5 (debug desligado por padrão, seção 5.1): com `python endpoints.py`, `Debug mode: off` e `GET /console` → 404. A correção do ACH-03 (errorhandler global) já suprimia a página de stack trace; o debug desligado fecha também o `/console`.
 
 ### 3.12 ACH-12 — Regras do Realtime Database abertas (modo de teste)
 
@@ -312,9 +312,41 @@ Correções aplicadas até agora. As demais entram aqui conforme forem feitas.
 - **Baseline:** validado com login real em 26/10/2026 — com um `Bearer <token>` válido, `GET /users/info` (várias vezes) e `POST /users/info` retornaram HTTP 200, e nenhuma URL traz o token. Evidência: [`evidence/ACH-03/baseline-after-fix-200.log`](evidence/ACH-03/baseline-after-fix-200.log).
 - **Efeito no ACH-11:** o errorhandler global já suprime a página de stack trace nas exceções de rota em modo debug, mas o debugger continua habilitado e o `/console` exposto; o ACH-11 segue aberto.
 
-## 5. Confiabilidade (SRE)
+## 5. Hardening de segurança (Fase 5)
 
-_A preencher._
+Melhorias aplicadas além das três correções de causa raiz da seção 4. Cada uma fecha ou endurece um ponto, e o baseline (login, salvar e carregar perfil em HTTP 200, app carregando, query respondendo) foi verificado depois de cada mudança. Todas em 26/10/2026.
+
+### 5.1 Debug desligado (fecha o ACH-11)
+
+- **O quê:** em `backend/endpoints.py`, `app.run(debug=True)` virou `app.run(debug=os.environ.get("FLASK_DEBUG") == "1")`, com debug desligado por padrão.
+- **Por quê:** o modo debug servia o debugger do Werkzeug (console interativo em `/console`, RCE via PIN) e stack traces completos.
+- **Verificação:** rodando `python endpoints.py` sem `FLASK_DEBUG`, o log mostra `Debug mode: off`, `GET /console` → 404 e uma exceção não exibe a página do debugger. No container (CLI do Flask) `/console` também → 404.
+- **Fecha:** ACH-11.
+
+### 5.2 CORS por allowlist
+
+- **O quê:** `CORS(app)` virou `CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"], allow_headers=["Content-Type", "Authorization"])`.
+- **Por quê:** o `CORS(app)` original refletia qualquer `Origin` (observação do recon). A allowlist restringe à origem do frontend e mantém o header `Authorization` permitido, sem o qual o fluxo do ACH-08 quebraria.
+- **Verificação:** o preflight de `http://localhost:3000` retorna HTTP 200 com `Access-Control-Allow-Origin: http://localhost:3000` e `Access-Control-Allow-Headers: authorization, content-type`; a origem `http://other.example` não recebe `Access-Control-Allow-Origin`; o preflight de `POST /users/info` continua 200.
+
+### 5.3 Rate limiting (endurece o ACH-09)
+
+- **O quê:** `flask-limiter` (adicionado ao `requirements.txt`) com limites por IP nos endpoints que o backend expõe: `/users/create` 5/min, `/users/query` 30/min, `/hash` 60/min. O preflight `OPTIONS` é isento, para não quebrar o navegador.
+- **Por quê:** o ACH-09 apontou um endpoint público sem limite de taxa.
+- **Observação:** o login é feito pelo Firebase Auth no cliente e não passa pelo backend, então o backend limita apenas o que ele expõe; o Firebase tem proteção própria contra abuso de login. O rate limiting **não** corrige o fail-open da autenticação opcional do ACH-09 (token como Promise, rebaixamento silencioso), que segue aberto.
+- **Verificação:** `/users/create` bloqueia na 6ª requisição em um minuto (HTTP 429); uma query e o salvar perfil não são bloqueados; `OPTIONS` não consome o limite.
+
+### 5.4 Container não-root (fecha o ACH-01)
+
+- **O quê:** instrução `USER` não-root nos três Dockerfiles: `appuser` (uid 10001) no `backend/Dockerfile`; usuário interno `node` (uid 1000) no `frontend/Dockerfile.dev` e no `frontend/Dockerfile`.
+- **Por quê:** rodar como root amplifica o impacto de qualquer execução de código no container (ACH-01).
+- **Segredos montados:** `config.json` e `credentials.json` são world-readable (0644), então o `appuser` os lê sem mudar o dono do volume.
+- **Verificação:** `docker compose exec backend id` → `uid=10001(appuser)` e `frontend` → `uid=1000(node)`; os dois sobem, o backend lê os segredos e o baseline fica em 200. O `frontend/Dockerfile` (produção) recebeu `USER node`, mas não foi construído, porque o build de produção ainda falha nos erros de TypeScript herdados (seção 2.2); a mudança nele é só por consistência.
+- **Fecha:** ACH-01.
+
+### 5.5 Não feito agora: headers de segurança
+
+CSP, HSTS, `X-Frame-Options` e `X-Content-Type-Options` protegem o frontend no navegador e ficam para a camada do Nginx (Fase 7), que é o lugar certo. Anotado aqui para não se perder.
 
 ## 6. Recomendações priorizadas
 

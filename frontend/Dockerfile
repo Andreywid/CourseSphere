@@ -17,6 +17,9 @@ COPY . .
 # Build the app
 RUN npm run build
 
+# Run as the built-in non-root 'node' user
+USER node
+
 # Expose the port that the app will run on
 EXPOSE 3000
 
