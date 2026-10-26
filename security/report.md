@@ -348,6 +348,69 @@ Melhorias aplicadas além das três correções de causa raiz da seção 4. Cada
 
 CSP, HSTS, `X-Frame-Options` e `X-Content-Type-Options` protegem o frontend no navegador e ficam para a camada do Nginx (Fase 7), que é o lugar certo. Anotado aqui para não se perder.
 
-## 6. Recomendações priorizadas
+## 6. Observabilidade e confiabilidade (SRE)
+
+### 6.1 Instrumentação (Fase 6)
+
+Adicionado ao `backend/endpoints.py`:
+
+- **Logs estruturados em JSON (stdout)** com `python-json-logger`: uma linha JSON por requisição (`after_request`) com `request_id` (UUID por requisição), `method`, `path`, `route`, `status`, `latency_ms` e `asctime`. O log de acesso em texto do Werkzeug foi silenciado; a linha JSON é o registro da requisição. O `path` nunca inclui a query string, então nenhum token vaza.
+- **Eventos de autenticação:** o helper `verify_uid` loga `auth` com `result: success` (e o `uid`, nunca o token) ou `result: failure` (motivo genérico `invalid_or_expired_token`, sem o token nem a mensagem do provedor, que pode ecoar o token). O `app.logger.exception` do ACH-03 também sai em JSON; para falha de autenticação o traceback é limpo (`raise AuthError() from None` tira a mensagem do Firebase da pilha).
+- **`/health` (liveness):** `GET /health` → HTTP 200 `{"status": "ok"}`, sem autenticação e sem rate limit.
+- **`/metrics` (Prometheus):** `prometheus-flask-exporter`, sem autenticação e sem rate limit, com contagem e latência de requisição por rota e status. **Em produção, `/metrics` deve ficar em rede interna, não exposto publicamente.**
+- **Verificado (26/10/2026):** nenhum token nos logs (inclusive um token malformado enviado de propósito), `/health` e `/metrics` em 200, e o baseline intacto.
+
+### 6.2 SLIs e SLOs
+
+Um SLI é a razão de eventos bons sobre o total de eventos válidos:
+
+$$\text{SLI} = \frac{\text{eventos bons}}{\text{eventos válidos}}$$
+
+**SLI 1 — Disponibilidade de `/users/info`:** proporção de requisições a `/users/info` com status menor que 500.
+
+$$\text{SLI}_{\text{disp}} = \frac{\#\{\text{req a /users/info com status} < 500\}}{\#\{\text{req a /users/info}\}}$$
+
+- **SLO:** 99,5% em 30 dias.
+- **PromQL** (usa o `_count` do histograma, que tem o label `path`; o counter `flask_http_request_total` só tem `method` e `status`):
+
+```promql
+sum(rate(flask_http_request_duration_seconds_count{path="/users/info", status!~"5.."}[30d]))
+/
+sum(rate(flask_http_request_duration_seconds_count{path="/users/info"}[30d]))
+```
+
+**SLI 2 — Latência:** proporção de requisições servidas em menos de 300 ms.
+
+$$\text{SLI}_{\text{lat}} = \frac{\#\{\text{req com duração} < 300\,\text{ms}\}}{\#\{\text{req}\}}$$
+
+- **SLO:** 95% em 28 dias.
+- **PromQL:**
+
+```promql
+sum(rate(flask_http_request_duration_seconds_bucket{le="0.25"}[28d]))
+/
+sum(rate(flask_http_request_duration_seconds_count[28d]))
+```
+
+- **Nota:** os buckets padrão do histograma não incluem 0,3 s; a query usa `le="0.25"` (250 ms, o bucket mais próximo e um pouco mais rígido). Para um corte exato em 300 ms, configurar um bucket `0.3` no exporter na Fase 7.
+
+### 6.3 Dashboard (Grafana)
+
+Painéis:
+
+- **Taxa de requisição** por rota: `sum by (path) (rate(flask_http_request_duration_seconds_count[5m]))`.
+- **Taxa de erro 5xx:** `sum(rate(flask_http_request_duration_seconds_count{status=~"5.."}[5m])) / sum(rate(flask_http_request_duration_seconds_count[5m]))`.
+- **Latência p50/p95/p99:** `histogram_quantile(0.5, sum by (le) (rate(flask_http_request_duration_seconds_bucket[5m])))` (e idem para 0.95 e 0.99).
+- **Os 2 SLIs vs SLO:** as razões de 6.2, com linhas de meta em 99,5% e 95%.
+
+O Grafana + Prometheus funcional (coleta, dashboards e alertas) entra na **Fase 7 (infra)**, junto do Nginx.
+
+### 6.4 Riscos de disponibilidade e resiliência
+
+- **Backend como ponto único.** Um só container Flask, sem balanceador nem réplica, servido pelo servidor de desenvolvimento do Flask: se ele cai, a API cai. **Resiliência:** rodar sob um WSGI de produção (gunicorn) com múltiplos workers atrás do Nginx, usar `/health` como liveness/readiness e, depois, mais de uma réplica.
+- **Rate limiter em memória.** Os limites vivem no processo (o aviso aparece no boot); reiniciar zera a contagem e, com vários processos ou réplicas, cada um conta em separado, afrouxando o limite. **Resiliência:** store compartilhado (Redis) para o `flask-limiter`.
+- **Dependência do Firebase.** Auth e RTDB são externos; indisponibilidade ou latência do Firebase degrada login, perfil e chat. **Resiliência:** definir timeouts nas chamadas, manter o tratamento de erro genérico (ACH-03) e monitorar a taxa de erro e a latência das rotas que chamam o Firebase, com alerta ligado aos SLOs.
+
+## 7. Recomendações priorizadas
 
 _A preencher._

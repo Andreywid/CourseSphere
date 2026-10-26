@@ -2,5 +2,7 @@ firebase-admin
 flask
 flask-cors
 flask-limiter
+prometheus-flask-exporter
+python-json-logger
 openai
 pandas

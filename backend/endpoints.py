@@ -1,8 +1,13 @@
+import logging
 import os
-from flask import Flask, request, jsonify
+import time
+import uuid
+from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from prometheus_flask_exporter import PrometheusMetrics
+from pythonjsonlogger import jsonlogger
 from werkzeug.exceptions import HTTPException
 from query_manager import QueryManager
 from firebase import Firebase
@@ -24,6 +29,46 @@ def exempt_preflight():
     # CORS preflight must never be rate limited, or the browser flow breaks.
     return request.method == "OPTIONS"
 
+# ---- Observability (Fase 6): structured JSON logs, metrics, health ----
+# Logs go to stdout as JSON. The plain-text Werkzeug access log is dropped; the
+# after_request line below is the per-request record.
+_json_handler = logging.StreamHandler()
+_json_handler.setFormatter(jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+app.logger.handlers = [_json_handler]
+app.logger.setLevel(logging.INFO)
+app.logger.propagate = False
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
+
+# Prometheus metrics at /metrics: request count and latency by path and status.
+# No auth, no rate limit. In production /metrics must sit on an internal network.
+metrics = PrometheusMetrics(app)
+
+
+@app.before_request
+def _start_request():
+    g.request_id = uuid.uuid4().hex
+    g.start_time = time.perf_counter()
+
+
+@app.after_request
+def _log_request(response):
+    # request.path never includes the query string, so no token can leak here.
+    app.logger.info("request", extra={
+        "event": "request",
+        "request_id": getattr(g, "request_id", None),
+        "method": request.method,
+        "path": request.path,
+        "route": request.url_rule.rule if request.url_rule else None,
+        "status": response.status_code,
+        "latency_ms": round((time.perf_counter() - getattr(g, "start_time", time.perf_counter())) * 1000, 2),
+    })
+    return response
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return success_response({"status": "ok"}, 200)
+
 # TODO: figure out the blueprint thing below
 #app.register_blueprint(courses_bp)
 
@@ -35,6 +80,21 @@ def get_bearer_token():
     if not header.startswith("Bearer "):
         return None
     return header[len("Bearer "):].strip()
+
+class AuthError(Exception):
+    pass
+
+def verify_uid(id_token):
+    # Verifies the Firebase ID token and logs the auth event. On failure it logs a
+    # generic reason and raises AuthError, never the token or the provider's message
+    # (which can echo the token). `from None` keeps that message out of the traceback.
+    try:
+        uid = Firebase.verify_id_token(id_token).get('uid')
+    except Exception:
+        app.logger.warning("auth failed", extra={"event": "auth", "result": "failure", "reason": "invalid_or_expired_token"})
+        raise AuthError() from None
+    app.logger.info("auth ok", extra={"event": "auth", "result": "success", "uid": uid})
+    return uid
 
 @app.route("/users/create", methods=["POST"])
 @limiter.limit("5 per minute")
@@ -57,7 +117,7 @@ def set_user_info():
     data = request.get_json()
     id_token = data.get("id_token")
     try:
-        uid = Firebase.verify_id_token(id_token).get('uid')
+        uid = verify_uid(id_token)
         majors = data.get("majors")
         minors = data.get("minors")
         year = data.get("year")
@@ -84,7 +144,7 @@ def get_user_info():
     if not id_token:
         return error_response("Missing or invalid Authorization header", 401)
     try:
-        uid = Firebase.verify_id_token(id_token).get('uid') # !!!
+        uid = verify_uid(id_token)
         user_info = Firebase.get_user_info(uid)
         return success_response(user_info, 200)
     except Exception:
@@ -109,7 +169,7 @@ def generate_message_id():
     if not id_token:
         return error_response("Missing or invalid Authorization header", 401)
     try:
-        Firebase.verify_id_token(id_token).get('uid')
+        verify_uid(id_token)
         data = request.get_json()
         message_id = hashFunction(data)
         return jsonify({'messageID': message_id}), 200
@@ -123,7 +183,7 @@ def save_chat(chat_id):
     if not id_token:
         return error_response("Missing or invalid Authorization header", 401)
     try:
-        user_id = Firebase.verify_id_token(id_token).get('uid')
+        user_id = verify_uid(id_token)
         messages = request.get_json().get('messages', [])
         Firebase.save_chat(user_id, chat_id, messages)
         return jsonify({'message': 'Messages saved successfully'}), 200
@@ -137,7 +197,7 @@ def delete_chat(chat_id):
     if not id_token:
         return error_response("Missing or invalid Authorization header", 401)
     try:
-        user_id = Firebase.verify_id_token(id_token).get('uid')
+        user_id = verify_uid(id_token)
         Firebase.delete_chat(user_id, chat_id)
         return success_response({'message': 'Message deleted successfully'}, 200)
     except Exception:

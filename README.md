@@ -30,7 +30,7 @@ Metodologia: análise manual guiada pelo OWASP WSTG, mais SAST, SCA e DAST, com 
 | 0 | Ambiente isolado e baseline | Concluída em 23/10/2026 |
 | 1 | Reconhecimento (inventário de rotas) | Concluída em 23/10/2026 |
 | 2 | SAST, SCA, DAST e formalização dos achados (CVSS 3.1, reprodução e impacto) | Em andamento: SAST e SCA concluídos; ACH-01, 03, 08, 09, 10, 11 e 12 formalizados; evidência do ACH-03, ACH-09 e ACH-12 capturada |
-| Próximas | Hardening e confiabilidade (SRE) | Em andamento: ACH-03, ACH-06, ACH-08 e ACH-12 corrigidos; hardening da Fase 5 fecha ACH-11 e ACH-01 e endurece ACH-09 |
+| Próximas | Confiabilidade (SRE) e infra | Fase 5 (hardening) e Fase 6 (observabilidade: logs JSON, /health, /metrics, SLIs/SLOs) concluídas; Fase 7 = Nginx, Grafana/Prometheus e headers de segurança |
 
 ## Como rodar
 
@@ -138,6 +138,7 @@ Mudanças mínimas, registradas no relatório (seções 2.4 e 4):
 - `frontend/src/firebaseConfig.ts`: configuração do projeto Firebase usado na avaliação.
 - `database.rules.json` e `firebase.json`: regras do Realtime Database versionadas, com acesso de cliente negado (correção do ACH-12, publicada e validada em 25/10/2026).
 - Hardening da Fase 5 (`backend/endpoints.py`, `requirements.txt`, Dockerfiles): debug desligado por padrão (fecha ACH-11), CORS por allowlist, rate limiting com `flask-limiter` (endurece ACH-09) e containers não-root (fecha ACH-01). Headers de segurança (CSP, HSTS...) ficam para o Nginx na Fase 7.
+- Observabilidade da Fase 6 (`backend/endpoints.py`, `requirements.txt`): logs estruturados em JSON (sem token), eventos de autenticação, `/health` e `/metrics` (Prometheus). SLIs/SLOs e o dashboard estão no relatório (seção 6); Grafana + Prometheus funcional entra na Fase 7.
 - Higiene do repositório: removidos arquivos `.DS_Store`, pastas `.idea/` e um `package-lock.json` vazio na raiz, versionados por engano no original. No `.gitignore`, o padrão `*config.json` virou `config.json`, porque também casava com `frontend/tsconfig.json`, e `__pycache__/` foi incluído.
 
 ## Estrutura do repositório
