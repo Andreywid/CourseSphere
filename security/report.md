@@ -1,6 +1,6 @@
 # Relatório Técnico de Segurança e Confiabilidade - CourseSphere
 
-> **Status:** rascunho preenchido de forma incremental. Fase 0 (ambiente isolado e baseline) concluída em 23/10/2026; na Fase 2, os achados ACH-01, 03, 08, 09, 10 e 11 foram formalizados em 24/10/2026 e o ACH-12 em 25/10/2026, quando também foram evidenciadas as reproduções do ACH-03 e do ACH-09; as seções 1, 5 e 6 são placeholders e a seção 4 lista as correções aplicadas ou preparadas até agora.
+> **Status:** rascunho preenchido de forma incremental. Fase 0 (ambiente isolado e baseline) concluída em 23/10/2026; na Fase 2, os achados ACH-01, 03, 08, 09, 10 e 11 foram formalizados em 24/10/2026 e o ACH-12 em 25/10/2026, quando também foram evidenciadas as reproduções do ACH-03 e do ACH-09. Na Fase 4, o ACH-12 foi corrigido e validado em 25/10/2026, e o ACH-08 foi corrigido em 25/10/2026 e validado em 26/10/2026. As seções 1, 5 e 6 são placeholders, e a seção 4 lista as correções.
 > O documento não contém segredos. Prints e logs ficam em [`evidence/`](evidence/README.md). O inventário de rotas que abre a Fase 1 está em [`recon.md`](recon.md).
 
 ## 1. Sumário executivo
@@ -64,8 +64,8 @@ Na primeira execução, antes da correção do ACH-06, `POST /users/info` e `GET
 Comportamentos originais observados (não são regressões da Fase 0; os arquivos envolvidos não foram alterados):
 
 - **"Failed to fetch your chats".** `UserChats.tsx:25` chama `/theactualbackendlink`, rota que não existe no backend. O log registra `OPTIONS /theactualbackendlink` com HTTP 404 e o componente exibe o toast de erro (`UserChats.tsx:41`). Ver ACH-04.
-- **Resposta da query sem conteúdo.** O `QueryManager` é um stub e devolve a string `"Fake implementation"`. O frontend lê `result.botResponse` (`api.ts:198`), campo que não existe nessa resposta e fica indefinido.
-- **Toast de sucesso sem checar `response.ok`.** `api.ts:167-169` exibe "Successfully saved your information!" qualquer que seja o status HTTP, o que escondeu o HTTP 400 da primeira execução. Ver ACH-07.
+- **Resposta da query sem conteúdo.** O `QueryManager` é um stub e devolve a string `"Fake implementation"`. O frontend lê `result.botResponse` (`api.ts:199`), campo que não existe nessa resposta e fica indefinido.
+- **Toast de sucesso sem checar `response.ok`.** `api.ts:168-170` exibe "Successfully saved your information!" qualquer que seja o status HTTP, o que escondeu o HTTP 400 da primeira execução. Ver ACH-07.
 
 Alterações em relação ao repositório original:
 
@@ -83,8 +83,8 @@ Formalização entre 24/10/2026 e 25/10/2026. Os achados ACH-01, 03, 08, 09, 10,
 
 | # | ID | Achado | CVSS 3.1 | Severidade | Situação |
 |---|---|---|---|---|---|
-| 1 | ACH-12 | Regras do Realtime Database abertas (modo de teste) | 9.8 | Crítico | Aberto; correção preparada, não publicada |
-| 2 | ACH-08 | `id_token` na URL e no log do Flask | 6.5 | Médio | Aberto |
+| 1 | ACH-12 | Regras do Realtime Database abertas (modo de teste) | 9.8 | Crítico | Corrigido e validado |
+| 2 | ACH-08 | `id_token` na URL e no log do Flask | 6.5 | Médio | Corrigido e validado |
 | 3 | ACH-03 | Vazamento de detalhe de erro ao cliente | 5.3 | Médio | Aberto |
 | 4 | ACH-11 | Modo debug do Flask habilitado | 7.4 | Alto (inerente) | Aberto, latente no container; quick win |
 | 5 | ACH-01 | Container executa como root | Não atribuído | Baixo | Aberto |
@@ -96,7 +96,7 @@ Formalização entre 24/10/2026 e 25/10/2026. Os achados ACH-01, 03, 08, 09, 10,
 | — | ACH-07 | Falha silenciosa no cliente | A definir | A definir | Aberto |
 | — | ACH-02 | Consolidado no ACH-03 | — | — | — |
 
-Ordem por risco prático: primeiro o ACH-12, crítico e presente no ambiente; depois o que se manifesta no ambiente fornecido (ACH-08 e ACH-03, por score), o que depende do modo de execução (ACH-11, quick win), o hardening (ACH-01 e ACH-09, ambos de severidade Baixa, sendo o ACH-09 latente) e, por último, o ACH-10, latente e não funcional (blueprint inativo, e `db.py` impede o retorno dos dados) apesar do score inerente alto. ACH-04 a ACH-07 ainda não têm CVSS e ficam fora do ranking.
+Ordem por risco prático: primeiro o ACH-12, crítico (corrigido e validado em 25/10/2026); depois o que se manifesta no ambiente fornecido (ACH-08, corrigido e validado, e ACH-03, por score), o que depende do modo de execução (ACH-11, quick win), o hardening (ACH-01 e ACH-09, ambos de severidade Baixa, sendo o ACH-09 latente) e, por último, o ACH-10, latente e não funcional (blueprint inativo, e `db.py` impede o retorno dos dados) apesar do score inerente alto. ACH-04 a ACH-07 ainda não têm CVSS e ficam fora do ranking.
 
 Severidade "inerente" é o score do código como escrito, assumindo as condições do achado (ACH-10: blueprint ativado; ACH-11: execução por `python endpoints.py`). O ambiente fornecido não está nessas condições.
 
@@ -125,8 +125,8 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **CVSS 3.1:** `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N` = **5.3 (Médio)**. Justificativa: detalhe interno de exceção devolvido ao cliente, trivialmente disparável e útil para reconhecimento.
 - **CWE:** CWE-209 (mensagem de erro com informação sensível) e CWE-20 (validação de entrada imprópria).
 - **OWASP Top 10 2021:** A05:2021 (configuração incorreta de segurança) e A09:2021 (falhas de registro e monitoramento de segurança).
-- **Descrição:** as 7 rotas de `endpoints.py` capturam `Exception` e devolvem o texto da exceção no corpo da resposta (HTTP 400; HTTP 500 em `/hash`). O texto vem de Python e do `firebase_admin`, que `firebase.py` reencapsula com `str(e)`, e não é filtrado. O caso mais claro é `POST /hash`: a rota faz `request.headers.get('Authorization').split('Bearer ')[1]` sem verificar se o header existe nem se tem o prefixo `Bearer `. Sem o header, `.split` levanta `AttributeError`; com o header sem o prefixo, o índice `[1]` levanta `IndexError`. O `except Exception` devolve HTTP 500 com `{"error": str(e)}`. O mesmo trecho existe em `POST /chats/<chat_id>/messages` e `DELETE /chats/<chat_id>`, onde a resposta é HTTP 400.
-- **Localização:** `backend/endpoints.py:28, 53, 63, 72, 83, 94, 104` (`str(e)` nas 7 rotas); `backend/endpoints.py:77` (extração do token em `/hash`, tratada em `:82-83`) e `:88`, `:99` (mesmo trecho nas rotas de chat); `backend/firebase.py:27, 36, 44, 52, 61, 78, 93, 109, 124, 138, 156, 164` (reencapsulamento com `str(e)`).
+- **Descrição:** as 7 rotas de `endpoints.py` capturam `Exception` e devolvem o texto da exceção no corpo da resposta (HTTP 400; HTTP 500 em `/hash`). O texto vem de Python e do `firebase_admin`, que `firebase.py` reencapsula com `str(e)`, e não é filtrado. O caso mais claro é `POST /hash`: a rota faz `request.headers.get('Authorization').split('Bearer ')[1]` sem verificar se o header existe nem se tem o prefixo `Bearer `. Sem o header, `.split` levanta `AttributeError`; com o header sem o prefixo, o índice `[1]` levanta `IndexError`. O `except Exception` devolve HTTP 500 com `{"error": str(e)}`. O mesmo trecho existe em `POST /chats/<chat_id>/messages`, em `DELETE /chats/<chat_id>` e, desde a correção do ACH-08, em `GET /users/info`; nessas rotas a resposta é HTTP 400.
+- **Localização:** `backend/endpoints.py:28, 53, 63, 72, 83, 94, 104` (`str(e)` nas 7 rotas); `backend/endpoints.py:77` (extração do token em `/hash`, tratada em `:82-83`) e `:58`, `:88`, `:99` (mesmo trecho em `GET /users/info` e nas rotas de chat); `backend/firebase.py:27, 36, 44, 52, 61, 78, 93, 109, 124, 138, 156, 164` (reencapsulamento com `str(e)`).
 - **Reprodução:**
   1. Com o ambiente no ar, enviar `POST /hash` sem o header `Authorization`: `curl -i -X POST http://localhost:5000/hash`.
   2. Observar HTTP 500 e, no corpo, `{"error":"'NoneType' object has no attribute 'split'"}`.
@@ -163,9 +163,9 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 
 ### 3.7 ACH-07 — Falha silenciosa no cliente: a interface exibe sucesso com HTTP 400
 
-- **Localização:** `frontend/src/api.ts:167-169` (`saveProfileChanges`: o `.then` exibe "Successfully saved your information!" sem verificar `response.ok`).
-- **Descrição:** `fetch` só rejeita a promessa em falha de rede; respostas HTTP 4xx e 5xx resolvem normalmente. Como o `.then` não examina o status, o toast de sucesso aparece mesmo quando o backend rejeita a gravação, e o `.catch` (linhas 170-172) só trata falha de rede. O erro do backend fica mascarado para o usuário.
-- **Mesmo padrão em outros fluxos** (sem verificação de `response.ok`): cadastro, em que `createUser` devolve o corpo da resposta (`api.ts:13-24`) e `performSignup` segue para o login (`:31-37`); leitura do perfil, em que `setProfileInfoIfLoggedIn` trata o corpo de erro como dados do perfil e não preenche nenhum campo, sem aviso (`:91-98`); e a query, em que `fetchCourseSphereResponse` exibe "Successfully retrieved bot response!" (`:194-196`). Os fluxos de chat e `/hash` verificam `response.ok` (`:247`, `:273`, `:292`, `:313`).
+- **Localização:** `frontend/src/api.ts:168-170` (`saveProfileChanges`: o `.then` exibe "Successfully saved your information!" sem verificar `response.ok`).
+- **Descrição:** `fetch` só rejeita a promessa em falha de rede; respostas HTTP 4xx e 5xx resolvem normalmente. Como o `.then` não examina o status, o toast de sucesso aparece mesmo quando o backend rejeita a gravação, e o `.catch` (linhas 171-173) só trata falha de rede. O erro do backend fica mascarado para o usuário.
+- **Mesmo padrão em outros fluxos** (sem verificação de `response.ok`): cadastro, em que `createUser` devolve o corpo da resposta (`api.ts:13-24`) e `performSignup` segue para o login (`:31-37`); leitura do perfil, em que `setProfileInfoIfLoggedIn` trata o corpo de erro como dados do perfil e não preenche nenhum campo, sem aviso (`:91-99`); e a query, em que `fetchCourseSphereResponse` exibe "Successfully retrieved bot response!" (`:195-197`). Os fluxos de chat e `/hash` verificam `response.ok` (`:248`, `:274`, `:293`, `:314`).
 - **Observado:** na primeira execução do baseline, antes da correção do ACH-06, `POST /users/info` retornou HTTP 400 e a interface exibiu o toast de sucesso. O log dessa execução não foi preservado.
 - **Severidade:** a definir na Fase 2.
 
@@ -174,24 +174,25 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **CVSS 3.1:** `CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:L/A:N` = **6.5 (Médio)**. Justificativa: credencial bearer exposta em query string e registrada em log; a exploração depende de alcançar o canal de vazamento dentro da janela de validade do token.
 - **CWE:** CWE-598 (uso de GET com dado sensível na query string) e CWE-532 (informação sensível em arquivo de log).
 - **OWASP Top 10 2021:** A02:2021 (falhas criptográficas).
-- **Descrição:** o frontend envia o ID token do Firebase na query string de um `GET`. O backend lê o token de `request.args`, e o log de acesso padrão do Flask grava a linha de requisição inteira, então o token fica em texto claro no log do backend. As demais rotas autenticadas recebem o token no header `Authorization` (`/hash` e `/chats/...`) ou no corpo da requisição (`POST /users/info`, `api.ts:157`).
-- **Localização:** `frontend/src/api.ts:91` (monta a URL com `?id_token=${idToken}`); `backend/endpoints.py:58` em `get_user_info` (`request.args.get("id_token")`) e `:59` (`Firebase.verify_id_token`). O backend não tem configuração de log própria; vale o log de acesso padrão.
+- **Descrição:** até a correção (seção 4.3), o frontend enviava o ID token do Firebase na query string de um `GET`. O backend lia o token de `request.args`, e o log de acesso padrão do Flask grava a linha de requisição inteira, então o token ficava em texto claro no log do backend. As demais rotas autenticadas recebem o token no header `Authorization` (`/hash` e `/chats/...`) ou no corpo da requisição (`POST /users/info`, `api.ts:158`).
+- **Localização** (antes da correção): `frontend/src/api.ts:91` montava a URL com `?id_token=${idToken}`, e `backend/endpoints.py:58`, em `get_user_info`, lia `request.args.get("id_token")`; o token é verificado em `:59` (`Firebase.verify_id_token`). O backend não tem configuração de log própria; vale o log de acesso padrão.
 - **Reprodução:**
   1. Subir o ambiente, fazer login e abrir o Dashboard (`/dashboard`), que dispara `GET /users/info?id_token=<token>`.
   2. Executar `docker compose logs backend` e procurar as linhas `GET /users/info?id_token=...`.
   3. Observar o token inteiro na URL registrada no log.
-- **Evidência:** [`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log), com o valor do token redigido antes de salvar (o valor original tinha 932 caracteres e prefixo de JWT). Ao repetir a reprodução, redigir o token antes de salvar qualquer log (ver [`evidence/README.md`](evidence/README.md)).
+  4. Os passos 1 a 3 valem para o código anterior à correção. Depois dela (seção 4.3), o log registra só `GET /users/info`, sem o token.
+- **Evidência:** [`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log), com o valor do token redigido antes de salvar (o valor original tinha 932 caracteres e prefixo de JWT). Ao repetir a reprodução, redigir o token antes de salvar qualquer log (ver [`evidence/README.md`](evidence/README.md)). Depois da correção: [`evidence/ACH-08/after-fix-no-token.log`](evidence/ACH-08/after-fix-no-token.log), com `GET /users/info` e `POST /users/info` em HTTP 200 e nenhuma URL com `?id_token=`.
 - **Impacto de negócio:** um token roubado (log, histórico do navegador, `Referer`) permite impersonar o usuário durante a janela de validade, lendo e alterando os dados dele.
 - **Causa raiz:** credencial na query string de uma requisição `GET`.
-- **Situação:** Aberto. Correção planejada para a Fase 4.
+- **Situação:** Corrigido e validado: corrigido no código em 25/10/2026 (seção 4.3) e validado com login real em 26/10/2026 ([`evidence/ACH-08/after-fix-no-token.log`](evidence/ACH-08/after-fix-no-token.log)).
 
 ### 3.9 ACH-09 — Autenticação opcional quebrada em `/users/query` (fail-open e sem limite de taxa)
 
 - **Classificação:** Baixo, latente. CVSS 3.1 não atribuído. Justificativa: o endpoint é público por desenho e hoje devolve só um stub; os defeitos são de hardening e ganham peso quando a lógica for concluída. O item foi reenquadrado: antes era tratado como ausência de autenticação (CWE-306, 5.3).
 - **CWE:** CWE-636 (falha aberta, em vez de falhar de forma segura).
 - **OWASP Top 10 2021:** A07:2021 (falhas de identificação e autenticação).
-- **Descrição:** `/users/query` é público por desenho: `fetchCourseSphereResponse` não chama `ensureUserLoggedIn`, ao contrário das demais chamadas autenticadas do `api.ts` (`:87, :143, :224, :257, :279, :299`); o `QueryManager` prevê consulta sem usuário (`query_manager.py:101`); e a leitura do usuário é opcional (`Firebase.try_get_user_info`). O problema real é que a autenticação opcional não funciona: (1) o frontend envia `idToken` como Promise não aguardada e com nome diferente do que o backend lê (`id_token`), então nem um usuário logado é reconhecido; (2) um token inválido ou ausente é rebaixado em silêncio para anônimo, porque `try_get_user_info` devolve `None` em qualquer falha e a rota responde 200 (fail-open); (3) o endpoint público não tem limite de taxa, o que é latente porque o handler é um stub. O teste `hasUserData = (self.user_data is not None)` (`query_manager.py:101`) nunca é falso, porque `:47` sempre cria o objeto de usuário, mesmo com usuário ausente: o ramo anônimo previsto no código não é detectado.
-- **Localização:** `backend/endpoints.py:65-72` (rota; `:69` lê `id_token`); `backend/firebase.py:64-68` (`try_get_user_info` devolve `None` em qualquer falha); `backend/query_manager.py:47` e `:101`; `frontend/src/api.ts:182-185` (função sem `ensureUserLoggedIn`, `idToken` sem `await` e com nome divergente) e `:190` (header `Authorization`).
+- **Descrição:** `/users/query` é público por desenho: `fetchCourseSphereResponse` não chama `ensureUserLoggedIn`, ao contrário das demais chamadas autenticadas do `api.ts` (`:87, :144, :225, :258, :280, :300`); o `QueryManager` prevê consulta sem usuário (`query_manager.py:101`); e a leitura do usuário é opcional (`Firebase.try_get_user_info`). O problema real é que a autenticação opcional não funciona: (1) o frontend envia `idToken` como Promise não aguardada e com nome diferente do que o backend lê (`id_token`), então nem um usuário logado é reconhecido; (2) um token inválido ou ausente é rebaixado em silêncio para anônimo, porque `try_get_user_info` devolve `None` em qualquer falha e a rota responde 200 (fail-open); (3) o endpoint público não tem limite de taxa, o que é latente porque o handler é um stub. O teste `hasUserData = (self.user_data is not None)` (`query_manager.py:101`) nunca é falso, porque `:47` sempre cria o objeto de usuário, mesmo com usuário ausente: o ramo anônimo previsto no código não é detectado.
+- **Localização:** `backend/endpoints.py:65-72` (rota; `:69` lê `id_token`); `backend/firebase.py:64-68` (`try_get_user_info` devolve `None` em qualquer falha); `backend/query_manager.py:47` e `:101`; `frontend/src/api.ts:183-186` (função sem `ensureUserLoggedIn`, `idToken` sem `await` e com nome divergente) e `:191` (header `Authorization`).
 - **Reprodução:**
   1. Com o ambiente no ar, enviar `POST /users/query` com um `id_token` inválido no corpo: `curl -i -X POST http://localhost:5000/users/query -H 'Content-Type: application/json' -d '{"query":"test","id_token":"invalido"}'`.
   2. Observar HTTP 200 com a resposta fixa `"Fake implementation"`: o token inválido não é rejeitado (fail-open). O mesmo ocorre sem token e com um header `Authorization` inválido.
@@ -249,16 +250,16 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Reprodução (nível de relatório, sem dump):**
   1. Ler o `databaseURL` em `frontend/src/firebaseConfig.ts`, que é público.
   2. Enviar ao endpoint REST do banco uma requisição de leitura sem credenciais, limitada às chaves de primeiro nível (parâmetro `shallow=true`), sem baixar dados.
-  3. Observar que a requisição é aceita, em vez de negada com `Permission denied`. Essa requisição não foi executada para este relatório; a evidência primária é o export das regras.
-- **Evidência:** [`evidence/ACH-12/database-rules.json`](evidence/ACH-12/database-rules.json), obtido em 25/10/2026 por leitura das regras do projeto com a conta de serviço (somente leitura, sem acesso a dados). Está no formato do console, com comentários, e não menciona `auth`.
+  3. Observar que a requisição é aceita, em vez de negada com `Permission denied`. Com as regras originais essa requisição não foi executada; a evidência primária é o export das regras. Depois da correção, a mesma leitura sem credenciais recebe HTTP 401 (`Permission denied`).
+- **Evidência:** [`evidence/ACH-12/database-rules.json`](evidence/ACH-12/database-rules.json), obtido em 25/10/2026 por leitura das regras do projeto com a conta de serviço (somente leitura, sem acesso a dados). Está no formato do console, com comentários, e não menciona `auth`. Depois da correção: [`evidence/ACH-12/unauth-denied-after-lock.txt`](evidence/ACH-12/unauth-denied-after-lock.txt) (leitura sem credenciais negada, HTTP 401) e [`evidence/ACH-12/baseline-after-lock.txt`](evidence/ACH-12/baseline-after-lock.txt) (fluxo do baseline mantido).
 - **Impacto de negócio:** leitura, alteração e exclusão de todos os dados de todos os usuários, sem login.
 - **Causa raiz:** regras não escopadas por usuário e não versionadas.
-- **Correção:** preparada no repositório (`database.rules.json` e `firebase.json`); ver a seção 4.2.
-- **Situação:** Aberto: a correção está no repositório, mas ainda não foi publicada no projeto Firebase.
+- **Correção:** versionada em `database.rules.json` e `firebase.json` e publicada no projeto em 25/10/2026; ver a seção 4.2.
+- **Situação:** Corrigido e validado em 25/10/2026: as regras publicadas negam todo acesso de cliente, a leitura sem credenciais recebe HTTP 401 e o fluxo do baseline continua funcionando.
 
 ## 4. Correções
 
-Correções aplicadas ou preparadas até agora. As demais entram aqui conforme forem feitas.
+Correções aplicadas até agora. As demais entram aqui conforme forem feitas.
 
 ### 4.1 ACH-06 — URL do RTDB externalizada
 
@@ -270,9 +271,26 @@ Correções aplicadas ou preparadas até agora. As demais entram aqui conforme f
 
 - **Alteração:** dois arquivos novos na raiz do repositório. `database.rules.json` define `.read` e `.write` como `false`, e `firebase.json` aponta para ele (`database.rules`). As regras passam a ser versionadas.
 - **Por que `false` e não regras por usuário:** o frontend não lê nem escreve no RTDB. Ele importa `getDatabase` (`api.ts:4`, `Nav.tsx:20`, `UserChats.tsx:4`) e cria a variável `database` (`api.ts:9`, `Nav.tsx:24`, `UserChats.tsx:10`), mas nunca a usa: não há chamada a `ref`, `get`, `set` nem `onValue` em `frontend/src`. Todo acesso ao RTDB passa pelo backend (`firebase.py`), que usa o Admin SDK e ignora as regras (comportamento documentado do Firebase). Regras por `auth.uid === $uid` em `users/$uid` só seriam necessárias se o frontend passasse a acessar o banco direto.
-- **Aplicação (pendente):** as regras só valem depois de publicadas no projeto Firebase: `firebase deploy --only database --project <id-do-projeto>` com o Firebase CLI autenticado, ou colando o conteúdo de `database.rules.json` no console (Realtime Database, aba Regras). Hoje o repositório tem o arquivo, mas o projeto continua com as regras originais.
-- **Verificação pós-aplicação (a executar):** (1) a requisição sem credenciais da reprodução do ACH-12 passa a ser negada com `Permission denied`; (2) o fluxo do baseline continua funcionando, com `POST /users/info` e `GET /users/info` retornando HTTP 200.
-- **Validação local:** os dois arquivos são JSON válido e `firebase.json` aponta para um arquivo existente. A publicação e o efeito das regras não foram testados.
+- **Aplicação:** publicada no projeto Firebase em 25/10/2026; as regras lidas do projeto com a conta de serviço são exatamente `.read: false` e `.write: false`. Para reaplicar: `firebase deploy --only database --project <id-do-projeto>` com o Firebase CLI autenticado, ou colando o conteúdo de `database.rules.json` no console (Realtime Database, aba Regras).
+- **Verificação pós-aplicação:** (1) a leitura sem credenciais é negada com HTTP 401 (`Permission denied`), em [`evidence/ACH-12/unauth-denied-after-lock.txt`](evidence/ACH-12/unauth-denied-after-lock.txt); (2) o fluxo do baseline continua funcionando, com `GET /users/info` e `POST /users/info` retornando HTTP 200, em [`evidence/ACH-12/baseline-after-lock.txt`](evidence/ACH-12/baseline-after-lock.txt).
+- **Validação local:** os dois arquivos são JSON válido e `firebase.json` aponta para um arquivo existente.
+
+### 4.3 ACH-08 — Token no header `Authorization`
+
+- **Causa raiz:** credencial na query string de um `GET`, que o log de acesso do Flask registra junto com a URL.
+- **Alteração:**
+  - `backend/endpoints.py:56-58`: `get_user_info` passou a ler o token de `request.headers.get("Authorization").split("Bearer ")[1]`, como as rotas `/hash` e `/chats/*`. A função não tem chamador interno, então a assinatura ficou `def get_user_info():`, sem o parâmetro `id_token=None` e sem o comentário sobre outro contexto. O tratamento de erro (`str(e)`) não mudou, porque é o ACH-03.
+  - `frontend/src/api.ts:91-95`: `setProfileInfoIfLoggedIn` chama `http://127.0.0.1:5000/users/info`, sem `?id_token=`, e envia `Authorization: Bearer ${idToken}`.
+  - O `POST /users/info` não mudou: o token vai no corpo, o que não é o ACH-08.
+- **Solução:** o token vai no header, que não aparece na URL nem no log de acesso.
+- **Verificação local** (stack recriado com `docker compose up -d --build`, sem token real):
+  - `GET /users/info` com `Authorization: Bearer invalido` chega à verificação do Firebase e retorna HTTP 400 com `Error verifying ID token`, o que prova que o header é lido.
+  - `GET /users/info?id_token=invalido`, no formato antigo, é ignorado: a resposta é a de requisição sem header.
+  - O preflight de CORS vindo de `http://localhost:3000` aceita o header `authorization`.
+  - O log de acesso registra `GET /users/info HTTP/1.1`, sem token.
+  - O frontend continua com os mesmos 15 erros de TypeScript herdados, nenhum novo, e o Vite serve o `api.ts` com o header.
+- **Efeito colateral:** sem o header, `GET /users/info` passa a responder como `/hash` e `/chats/*` (exceção interna no corpo, HTTP 400). Isso entra no ACH-03.
+- **Validação com login real** (26/10/2026): abrindo o Dashboard e salvando o perfil, o log registra `GET /users/info` (duas vezes) e `POST /users/info` com HTTP 200, e nenhuma URL com `?id_token=`; o preflight passou a ser `OPTIONS /users/info`, sem query string. Evidência: [`evidence/ACH-08/after-fix-no-token.log`](evidence/ACH-08/after-fix-no-token.log).
 
 ## 5. Confiabilidade (SRE)
 

@@ -1,6 +1,6 @@
 # Evidências de SAST e SCA
 
-Saídas das ferramentas automáticas rodadas em 23/10/2026 e o mapeamento dos resultados nos achados do [relatório](../../report.md). Não há CVSS aqui: as severidades abaixo são as que cada ferramenta reporta, e a classificação CVSS 3.1 dos achados está no relatório (seção 3). O DAST (OWASP ZAP) não foi executado.
+Saídas das ferramentas automáticas rodadas em 23/10/2026 e o mapeamento dos resultados nos achados do [relatório](../../report.md). Não há CVSS aqui: as severidades abaixo são as que cada ferramenta reporta, e a classificação CVSS 3.1 dos achados está no relatório (seção 3). O DAST (OWASP ZAP) não foi executado. As linhas citadas são as do código escaneado em 23/10/2026; correções posteriores, como a do ACH-08, deslocaram linhas do `api.ts`.
 
 ## Como foi rodado
 
