@@ -1,0 +1,15 @@
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:42:35] "GET /users/info HTTP/1.1" 401 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:12] "OPTIONS /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:12] "OPTIONS /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:18] "GET /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:29] "OPTIONS /theactualbackendlink HTTP/1.1" 404 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:29] "OPTIONS /theactualbackendlink HTTP/1.1" 404 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:37] "OPTIONS /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:37] "OPTIONS /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:38] "GET /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:38] "GET /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:45] "OPTIONS /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:45] "OPTIONS /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:46] "GET /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:46] "GET /users/info HTTP/1.1" 200 -
+backend-1  | 172.18.0.1 - - [26/Oct/2026 20:43:50] "POST /users/info HTTP/1.1" 200 -

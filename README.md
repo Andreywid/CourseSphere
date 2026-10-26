@@ -30,7 +30,7 @@ Metodologia: análise manual guiada pelo OWASP WSTG, mais SAST, SCA e DAST, com 
 | 0 | Ambiente isolado e baseline | Concluída em 23/10/2026 |
 | 1 | Reconhecimento (inventário de rotas) | Concluída em 23/10/2026 |
 | 2 | SAST, SCA, DAST e formalização dos achados (CVSS 3.1, reprodução e impacto) | Em andamento: SAST e SCA concluídos; ACH-01, 03, 08, 09, 10, 11 e 12 formalizados; evidência do ACH-03, ACH-09 e ACH-12 capturada |
-| Próximas | Correções, hardening e confiabilidade (SRE) | Em andamento: ACH-06, ACH-08 e ACH-12 corrigidos e validados |
+| Próximas | Correções, hardening e confiabilidade (SRE) | Em andamento: ACH-03, ACH-06, ACH-08 e ACH-12 corrigidos e validados |
 
 ## Como rodar
 
@@ -109,7 +109,7 @@ Os achados ficam no relatório (seção 3), cada um com ID `ACH-xx`, na ordem de
 |---|---|---|---|---|---|
 | 1 | ACH-12 | Regras do Realtime Database abertas (modo de teste) | 9.8 | Crítico | Corrigido e validado |
 | 2 | ACH-08 | `id_token` na URL e no log do Flask | 6.5 | Médio | Corrigido e validado |
-| 3 | ACH-03 | Vazamento de detalhe de erro ao cliente | 5.3 | Médio | Aberto |
+| 3 | ACH-03 | Vazamento de detalhe de erro ao cliente | 5.3 | Médio | Corrigido e validado |
 | 4 | ACH-11 | Modo debug do Flask habilitado | 7.4 | Alto (inerente) | Aberto, latente no container; quick win |
 | 5 | ACH-01 | Container executa como root | Não atribuído | Baixo | Aberto |
 | 6 | ACH-09 | `/users/query`: autenticação opcional quebrada (fail-open) | Não atribuído | Baixo | Latente; hardening |
@@ -120,7 +120,7 @@ Os achados ficam no relatório (seção 3), cada um com ID `ACH-xx`, na ordem de
 | — | ACH-07 | Falha silenciosa no cliente | A definir | A definir | Aberto |
 | — | ACH-02 | Consolidado no ACH-03 | — | — | — |
 
-Ordem por risco prático: primeiro o ACH-12, crítico (corrigido e validado em 25/10/2026); depois o que se manifesta no ambiente fornecido (ACH-08, corrigido e validado, e ACH-03, por score), o que depende do modo de execução (ACH-11, quick win), o hardening (ACH-01 e ACH-09, ambos de severidade Baixa, sendo o ACH-09 latente) e, por último, o ACH-10, latente e não funcional (blueprint inativo, e `db.py` impede o retorno dos dados) apesar do score inerente alto. ACH-04 a ACH-07 ainda não têm CVSS e ficam fora do ranking.
+Ordem por risco prático: primeiro o ACH-12, crítico (corrigido e validado em 25/10/2026); depois o que se manifesta no ambiente fornecido (ACH-08 e ACH-03, corrigidos e validados, na ordem por score), o que depende do modo de execução (ACH-11, quick win), o hardening (ACH-01 e ACH-09, ambos de severidade Baixa, sendo o ACH-09 latente) e, por último, o ACH-10, latente e não funcional (blueprint inativo, e `db.py` impede o retorno dos dados) apesar do score inerente alto. ACH-04 a ACH-07 ainda não têm CVSS e ficam fora do ranking.
 
 Severidade "inerente" é o score do código como escrito, assumindo as condições do achado (ACH-10: blueprint ativado; ACH-11: execução por `python endpoints.py`). O ambiente fornecido não está nessas condições.
 
@@ -133,6 +133,7 @@ Mudanças mínimas, registradas no relatório (seções 2.4 e 4):
 - `backend/main.py`: a chamada à OpenAI que ficava solta no fim do módulo foi para `if __name__ == "__main__":`, para o import não disparar chamada de rede.
 - `backend/firebase.py`: a URL do RTDB vem de `FIREBASE_DB_URL`, sem valor padrão (correção do ACH-06).
 - `backend/endpoints.py` (`GET /users/info`) e `frontend/src/api.ts` (`setProfileInfoIfLoggedIn`): o token saiu da query string e foi para o header `Authorization` (correção do ACH-08).
+- `backend/endpoints.py`: respostas de erro genéricas (detalhe só no log), validação do header `Authorization` com HTTP 401 e errorhandler global (correção do ACH-03).
 - `frontend/Dockerfile`: base `node:20-alpine`, porque o Vite 5 exige Node 18 ou superior.
 - `frontend/src/firebaseConfig.ts`: configuração do projeto Firebase usado na avaliação.
 - `database.rules.json` e `firebase.json`: regras do Realtime Database versionadas, com acesso de cliente negado (correção do ACH-12, publicada e validada em 25/10/2026).
