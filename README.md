@@ -2,6 +2,8 @@
 
 > Desafio técnico de AppSec e SRE. Este repositório parte da aplicação de referência [LambdaAK/CourseSphere](https://github.com/LambdaAK/CourseSphere) e acrescenta uma avaliação de segurança (análise de vulnerabilidades, correções e hardening) e de confiabilidade (observabilidade e operação), em um ambiente isolado e reprodutível.
 
+[![security](https://github.com/Andreywid/CourseSphere/actions/workflows/security.yml/badge.svg)](https://github.com/Andreywid/CourseSphere/actions/workflows/security.yml)
+
 ## Sobre a aplicação
 
 CourseSphere é um assistente de recomendação de cursos e professores.
@@ -19,6 +21,8 @@ O foco do trabalho não é a funcionalidade, e sim identificar e corrigir falhas
 | Relatório técnico: escopo, metodologia, achados, severidade e correções | [`security/report.md`](security/report.md) |
 | Inventário de rotas e superfície de ataque | [`security/recon.md`](security/recon.md) |
 | Nginx balanceando 2 instâncias do backend (gunicorn) + headers de segurança | [`docker-compose.yml`](docker-compose.yml), [`nginx/nginx.conf`](nginx/nginx.conf) |
+| CI de segurança (SAST/SCA a cada push/PR) e Dependabot | [`.github/workflows/security.yml`](.github/workflows/security.yml), [`.github/dependabot.yml`](.github/dependabot.yml) |
+| Teste de autorização das regras do RTDB (emulador do Firebase, ACH-12) | [`security/rules-tests/`](security/rules-tests/) |
 | Regras do Realtime Database restritas (correção do ACH-12) | [`database.rules.json`](database.rules.json), [`firebase.json`](firebase.json) |
 | Evidências (logs e prints) e saídas das ferramentas | [`security/evidence/`](security/evidence/README.md) |
 
@@ -144,6 +148,8 @@ Mudanças mínimas, registradas no relatório (seções 2.4 e 4):
 - Observabilidade da Fase 6 (`backend/endpoints.py`, `requirements.txt`): logs estruturados em JSON (sem token), eventos de autenticação, `/health` e `/metrics` (Prometheus). SLIs/SLOs e o dashboard estão no relatório (seção 6); Grafana + Prometheus funcional entra na Fase 7.
 - Infra da Fase 7, parte 1 (`docker-compose.yml`, `nginx/nginx.conf`, `backend/Dockerfile`, `requirements.txt`): backend sob gunicorn, duas instâncias (`backend1`/`backend2`) atrás de um Nginx que balanceia em round-robin, com headers de segurança no Nginx. O frontend chama `localhost:5000`, que agora é o Nginx (seção 7).
 - Infra da Fase 7, parte 2 — diferencial (`docker-compose.yml`, `observability/`, `backend/`): Prometheus + Grafana provisionado (dashboard SRE), Redis como store compartilhado do rate limiter (limite global entre instâncias) e bucket de latência de 0,3 s. Prometheus/Grafana/Redis são do ambiente de teste (seção 6).
+- CI de segurança — diferencial (`.github/`): workflow do GitHub Actions que roda Semgrep, Bandit, pip-audit e npm audit a cada push/PR (em modo report), mais Dependabot para atualização de dependências. Os resultados aparecem na aba **Actions** do repositório (seção 7.8).
+- Teste de autorização das regras do RTDB — diferencial (`security/rules-tests/`): teste de unidade das regras com o emulador do Firebase, provando que o acesso de cliente é negado (regressão do ACH-12). Rodar com `cd security/rules-tests && npm install && npm run emulate` (seção 7.9).
 - Higiene do repositório: removidos arquivos `.DS_Store`, pastas `.idea/` e um `package-lock.json` vazio na raiz, versionados por engano no original. No `.gitignore`, o padrão `*config.json` virou `config.json`, porque também casava com `frontend/tsconfig.json`, e `__pycache__/` foi incluído.
 
 ## Estrutura do repositório
@@ -160,6 +166,8 @@ experiment/                     notebook de experimento do repositório original
 docker-compose.yml              ambiente isolado (Nginx + 2 backends + frontend)
 nginx/nginx.conf                balanceador e headers de segurança
 observability/                  Prometheus e Grafana provisionado (dashboard SRE)
+.github/                        CI de segurança (Actions) e Dependabot
+security/rules-tests/           teste das regras do RTDB (emulador do Firebase)
 database.rules.json             regras do Realtime Database (acesso de cliente negado)
 firebase.json                   aponta o Firebase CLI para as regras
 security/

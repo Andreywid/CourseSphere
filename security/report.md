@@ -273,7 +273,7 @@ Correções aplicadas até agora. As demais entram aqui conforme forem feitas.
 - **Alteração:** dois arquivos novos na raiz do repositório. `database.rules.json` define `.read` e `.write` como `false`, e `firebase.json` aponta para ele (`database.rules`). As regras passam a ser versionadas.
 - **Por que `false` e não regras por usuário:** o frontend não lê nem escreve no RTDB. Ele importa `getDatabase` (`api.ts:4`, `Nav.tsx:20`, `UserChats.tsx:4`) e cria a variável `database` (`api.ts:9`, `Nav.tsx:24`, `UserChats.tsx:10`), mas nunca a usa: não há chamada a `ref`, `get`, `set` nem `onValue` em `frontend/src`. Todo acesso ao RTDB passa pelo backend (`firebase.py`), que usa o Admin SDK e ignora as regras (comportamento documentado do Firebase). Regras por `auth.uid === $uid` em `users/$uid` só seriam necessárias se o frontend passasse a acessar o banco direto.
 - **Aplicação:** publicada no projeto Firebase em 25/10/2026; as regras lidas do projeto com a conta de serviço são exatamente `.read: false` e `.write: false`. Para reaplicar: `firebase deploy --only database --project <id-do-projeto>` com o Firebase CLI autenticado, ou colando o conteúdo de `database.rules.json` no console (Realtime Database, aba Regras).
-- **Verificação pós-aplicação:** (1) a leitura sem credenciais é negada com HTTP 401 (`Permission denied`), em [`evidence/ACH-12/unauth-denied-after-lock.txt`](evidence/ACH-12/unauth-denied-after-lock.txt); (2) o fluxo do baseline continua funcionando, com `GET /users/info` e `POST /users/info` retornando HTTP 200, em [`evidence/ACH-12/baseline-after-lock.txt`](evidence/ACH-12/baseline-after-lock.txt).
+- **Verificação pós-aplicação:** (1) a leitura sem credenciais é negada com HTTP 401 (`Permission denied`), em [`evidence/ACH-12/unauth-denied-after-lock.txt`](evidence/ACH-12/unauth-denied-after-lock.txt); (2) o fluxo do baseline continua funcionando, com `GET /users/info` e `POST /users/info` retornando HTTP 200, em [`evidence/ACH-12/baseline-after-lock.txt`](evidence/ACH-12/baseline-after-lock.txt). Um teste de unidade das regras (emulador do Firebase) previne regressão: ver seção 7.9.
 - **Validação local:** os dois arquivos são JSON válido e `firebase.json` aponta para um arquivo existente.
 
 ### 4.3 ACH-08 — Token no header `Authorization`
@@ -476,6 +476,29 @@ alterna `backend1` e `backend2`. Evidências em [`evidence/infra/`](evidence/REA
 ### 7.7 A fazer na Fase 7 (próximas partes)
 
 Parte 2 (diferencial) concluída: Prometheus + Grafana provisionado + Redis para o rate limiter + bucket de 0,3 s (ver seção 6). Falta: terminação TLS + HSTS, alertas ligados aos SLOs, rate limit por cliente real (`X-Forwarded-For`/`ProxyFix`) e build de produção do frontend (hoje falha nos erros de TypeScript herdados).
+
+### 7.8 CI de segurança (GitHub Actions, diferencial)
+
+`.github/workflows/security.yml` roda SAST e SCA a cada `push` e `pull_request`, automatizando o que foi feito manual na Fase 2. Jobs:
+
+- **Semgrep (SAST)** em `backend/` e `frontend/src`, com os pacotes `p/python`, `p/flask` e `p/javascript`; publica o SARIF na aba Security e como artefato.
+- **Bandit (SAST)** no backend.
+- **pip-audit (SCA)** nas dependências do backend (`backend/requirements.txt`).
+- **npm audit (SCA)** no frontend, com `--audit-level=high`.
+
+**Modo report:** os jobs usam `continue-on-error`, então não bloqueiam o merge. A escolha é deliberada: o projeto tem achados herdados já rastreados (ACH-xx) e vulnerabilidades transitivas no frontend; bloquear deixaria a CI sempre vermelha. Para virar um gate bloqueante, basta remover o `continue-on-error` (ou usar `--error` no Semgrep). Nenhum job usa segredos, sobe a aplicação ou toca o Firebase: só instalam as ferramentas e analisam os arquivos do repositório.
+
+**Dependabot:** `.github/dependabot.yml` abre PRs semanais de atualização para `pip` (backend), `npm` (frontend), `github-actions` e `docker` (imagem base do backend).
+
+Validado localmente, em containers, que cada comando roda: Semgrep gera SARIF válido, pip-audit não achou vulnerabilidade nas bibliotecas do backend, Bandit lista os achados conhecidos e o npm audit sinaliza as dependências `high` do frontend. A CI em si só executa depois do push no GitHub.
+
+### 7.9 Teste de autorização das regras do RTDB (diferencial)
+
+Para prevenir regressão da correção do ACH-12, `security/rules-tests/` tem um teste automatizado e reprodutível das regras do Realtime Database, com o **Firebase Local Emulator Suite** e o `@firebase/rules-unit-testing`. Ele carrega o `database.rules.json` no emulador e afirma que o acesso de cliente é **negado** (leitura e escrita, não autenticado e autenticado), já que as regras são deny-all e todo acesso legítimo passa pelo backend via Admin SDK.
+
+- **Como rodar:** `cd security/rules-tests && npm install && npm run emulate` (que é `firebase emulators:exec --project demo-coursesphere --only database "npm test"`).
+- **Offline e sem segredos:** roda só no emulador, com um projeto `demo-*`; não toca o projeto real, não usa `credentials.json` e precisa apenas de Node e Java (o emulador). Dá para pôr na CI.
+- **É um teste de unidade das regras**, diferente da verificação por REST do ACH-12 (seção 4.2), que checa a regra já publicada no projeto. Se as regras passarem a ser por usuário (`auth.uid === $uid`), o teste já tem o esqueleto para afirmar que um usuário acessa só o próprio nó. Rodado em 27/10/2026, os 4 testes passam: [`evidence/ACH-12/rules-test-pass.txt`](evidence/ACH-12/rules-test-pass.txt).
 
 ## 8. Recomendações priorizadas
 

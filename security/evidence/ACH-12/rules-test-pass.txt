@@ -1,0 +1,42 @@
+# Teste de autorização das regras do RTDB (ACH-12) — emulador do Firebase — 27/10/2026
+# cd security/rules-tests && npm install && npm run emulate
+# (firebase emulators:exec --project demo-coursesphere --only database "npm test")
+
+i  Running script: npm test
+
+> coursesphere-rules-tests@1.0.0 test
+> node --test
+
+TAP version 13
+# Subtest: leitura de cliente NÃO autenticado é negada
+ok 1 - leitura de cliente NÃO autenticado é negada
+  ---
+  duration_ms: 393.039352
+  ...
+# [2026-10-27T12:46:18.048Z]  @firebase/database: FIREBASE WARNING: set at /users/alice/info failed: permission_denied 
+# Subtest: escrita de cliente NÃO autenticado é negada
+ok 2 - escrita de cliente NÃO autenticado é negada
+  ---
+  duration_ms: 43.079672
+  ...
+# Subtest: leitura de cliente autenticado também é negada (deny-all; backend usa Admin SDK)
+ok 3 - leitura de cliente autenticado também é negada (deny-all; backend usa Admin SDK)
+  ---
+  duration_ms: 54.990063
+  ...
+# [2026-10-27T12:46:18.121Z]  @firebase/database: FIREBASE WARNING: set at /users/alice/info failed: permission_denied 
+# Subtest: escrita de cliente autenticado também é negada
+ok 4 - escrita de cliente autenticado também é negada
+  ---
+  duration_ms: 17.038181
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 649.260362
+✔  Script exited successfully (code 0)
