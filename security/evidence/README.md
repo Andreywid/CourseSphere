@@ -29,6 +29,7 @@ Esta pasta guarda os prints e logs que sustentam o [relatório](../report.md).
 | `infra/backend-instances.log` | Linhas de log JSON de `backend1` e `backend2` (campo `instance`), provando que as duas instâncias atendem requisições; sem token. | Seção 7.5 | Capturado em 26/10/2026 |
 | `infra/security-headers.txt` | `curl -i localhost:5000/health` via Nginx, com os quatro headers de segurança e um único `Access-Control-Allow-Origin`. | Seção 7.4 | Capturado em 26/10/2026 |
 | `infra/rate-limit-global.txt` | 7 requisições a `/users/create` alternando `backend1`/`backend2`: 5 passam somadas e a 6ª dá HTTP 429 (limite global via Redis, compartilhado entre as instâncias). | Seção 6.4 | Capturado em 26/10/2026 |
+| `infra/grafana-dashboard.png` | Dashboard "CourseSphere SRE" no Grafana (range de 5 min): o painel de erro 5xx plano em 0% com o eixo em 0-100%, os 2 SLIs em 100%, latência e taxa de requisição. | Seção 6.3 | Capturado em 27/10/2026 |
 
 ## Antes de salvar um arquivo
 
