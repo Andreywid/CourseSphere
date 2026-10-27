@@ -1,31 +1,57 @@
+# URL do RTDB (mesmo valor do databaseURL em frontend/src/firebaseConfig.ts).
+x-backend-env: &backend-env
+  FIREBASE_DB_URL: https://coursesphere-andreywid-default-rtdb.firebaseio.com
+
+# Config comum das instâncias: mesma imagem e mesmos segredos (somente leitura),
+# sem publicar a 5000 (só o Nginx publica). create_host_path: false faz o compose
+# falhar se um segredo faltar, em vez de criar um diretório vazio no lugar.
+x-backend: &backend
+  build: ./backend
+  expose:
+    - "5000"
+  volumes:
+    - type: bind
+      source: ./backend/config.json
+      target: /app/config.json
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ./backend/credentials.json
+      target: /app/credentials.json
+      read_only: true
+      bind:
+        create_host_path: false
+  networks:
+    - coursesphere-net
+
 services:
-  backend:
-    build: ./backend
+  backend1:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      INSTANCE_NAME: backend1
+
+  backend2:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      INSTANCE_NAME: backend2
+
+  # Único serviço que publica a 5000; balanceia backend1/backend2.
+  nginx:
+    image: nginx:1.27-alpine
     ports:
       - "5000:5000"
-    # Keep in sync with databaseURL in frontend/src/firebaseConfig.ts.
-    environment:
-      FIREBASE_DB_URL: https://coursesphere-andreywid-default-rtdb.firebaseio.com
-    # Secrets stay out of the image. create_host_path: false makes compose fail
-    # if a file is missing instead of creating an empty directory in its place.
     volumes:
-      - type: bind
-        source: ./backend/config.json
-        target: /app/config.json
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ./backend/credentials.json
-        target: /app/credentials.json
-        read_only: true
-        bind:
-          create_host_path: false
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend1
+      - backend2
     networks:
       - coursesphere-net
 
   frontend:
-    # Temporary: the production build (frontend/Dockerfile) fails on TypeScript errors.
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev

@@ -1,0 +1,28 @@
+# Distribuição de carga via Nginx (round-robin) — 26/10/2026
+# Nginx publica localhost:5000 e balanceia backend1:5000 e backend2:5000.
+
+$ for i in $(seq 1 20); do curl -s -i localhost:5000/health | grep -i ^X-Backend-Instance; done
+X-Backend-Instance: backend1
+X-Backend-Instance: backend2
+X-Backend-Instance: backend1
+X-Backend-Instance: backend2
+X-Backend-Instance: backend1
+X-Backend-Instance: backend2
+X-Backend-Instance: backend1
+X-Backend-Instance: backend2
+X-Backend-Instance: backend1
+X-Backend-Instance: backend2
+X-Backend-Instance: backend1
+X-Backend-Instance: backend2
+X-Backend-Instance: backend1
+X-Backend-Instance: backend2
+X-Backend-Instance: backend1
+X-Backend-Instance: backend2
+X-Backend-Instance: backend1
+X-Backend-Instance: backend2
+X-Backend-Instance: backend1
+X-Backend-Instance: backend2
+
+# Agregado:
+     10 backend1
+     10 backend2

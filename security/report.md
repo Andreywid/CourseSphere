@@ -411,6 +411,70 @@ O Grafana + Prometheus funcional (coleta, dashboards e alertas) entra na **Fase 
 - **Rate limiter em memória.** Os limites vivem no processo (o aviso aparece no boot); reiniciar zera a contagem e, com vários processos ou réplicas, cada um conta em separado, afrouxando o limite. **Resiliência:** store compartilhado (Redis) para o `flask-limiter`.
 - **Dependência do Firebase.** Auth e RTDB são externos; indisponibilidade ou latência do Firebase degrada login, perfil e chat. **Resiliência:** definir timeouts nas chamadas, manter o tratamento de erro genérico (ACH-03) e monitorar a taxa de erro e a latência das rotas que chamam o Firebase, com alerta ligado aos SLOs.
 
-## 7. Recomendações priorizadas
+## 7. Infraestrutura e escalabilidade (Fase 7)
+
+Parte 1: Nginx balanceando duas instâncias do backend, backend sob gunicorn e headers de segurança no Nginx. Tudo em 26/10/2026.
+
+### 7.1 Desenho
+
+```
+navegador (localhost:3000, frontend Vite)
+        │  chamadas de API para http://localhost:5000  (agora o Nginx)
+        ▼
+   Nginx  (publica 5000, round-robin, headers de segurança)
+        ├──────────────► backend1:5000  (gunicorn, 1 worker)
+        └──────────────► backend2:5000  (gunicorn, 1 worker)
+```
+
+- O frontend continua chamando `http://localhost:5000`, que agora é o Nginx, não o backend direto.
+- `backend1` e `backend2` compartilham a mesma imagem e os mesmos volumes de segredo (somente leitura) e **não** publicam a 5000 no host; só o Nginx publica. No compose, os dois serviços saem de uma âncora YAML (`x-backend`) e diferem só pela variável `INSTANCE_NAME`.
+
+### 7.2 Backend sob gunicorn
+
+- O `CMD` do `backend/Dockerfile` trocou o servidor de desenvolvimento do Flask por `gunicorn --bind 0.0.0.0:5000 --workers 1 endpoints:app` (`gunicorn` adicionado ao `requirements.txt`). `WORKDIR` e os caminhos relativos não mudaram.
+- **Um worker por instância**, para manter o `/metrics` simples (um processo por instância, sem modo multiprocess do Prometheus). A escala é horizontal, por mais instâncias atrás do Nginx. gunicorn roda como o usuário não-root `appuser` (Fase 5) e escuta na 5000 (porta alta, sem privilégio).
+
+### 7.3 Nginx
+
+- `upstream` com `backend1:5000` e `backend2:5000`, round-robin (padrão), em `nginx/nginx.conf`. O Nginx (`nginx:1.27-alpine`) escuta na 5000 publicada.
+- Repassa `Host`, `Origin` e `Authorization` ao backend.
+- **Não** adiciona headers de CORS: o backend já cuida do CORS (flask-cors, Fase 5), e um header duplicado quebraria o navegador. Verificado: a resposta tem exatamente um `Access-Control-Allow-Origin`.
+
+### 7.4 Headers de segurança (os adiados da Fase 5)
+
+Adicionados no Nginx (`add_header ... always`), apropriados para uma API JSON:
+
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Referrer-Policy: no-referrer`
+- `Content-Security-Policy: default-src 'none'`
+
+O **HSTS** (`Strict-Transport-Security`) entra junto com a terminação TLS, que ainda não existe nesta parte.
+
+### 7.5 Como provar a distribuição
+
+Cada instância se identifica: o backend adiciona o header de resposta `X-Backend-Instance` (valor de `INSTANCE_NAME`) e inclui o campo `instance` em cada linha de log JSON. Então:
+
+```bash
+for i in $(seq 1 20); do curl -s -i localhost:5000/health | grep -i ^X-Backend-Instance; done
+```
+
+alterna `backend1` e `backend2`. Evidências em [`evidence/infra/`](evidence/README.md): `load-balancing.txt` (20 requisições, 10/10), `backend-instances.log` (logs JSON das duas instâncias) e `security-headers.txt` (headers via Nginx). O header `X-Backend-Instance` serve para demonstrar o balanceamento; em produção pode ser removido para não expor a topologia.
+
+### 7.6 Verificações (26/10/2026)
+
+- A stack sobe (`backend1`, `backend2`, `nginx`, `frontend`).
+- `curl localhost:5000/health` → HTTP 200 `{"status":"ok"}` com os quatro headers de segurança e um só `Access-Control-Allow-Origin`.
+- 20 requisições a `/health` → 10 em `backend1` e 10 em `backend2` (round-robin).
+- Via Nginx: `POST /users/query` → 200, `GET /users/info` sem token → 401, com `Bearer` inválido → 400; `frontend` em `localhost:3000` → 200.
+- Preflight de `localhost:3000` → 200 com um único `Access-Control-Allow-Origin`.
+- Nenhum token nas evidências nem nos logs das instâncias.
+- **Pendente:** o fluxo completo de login no navegador (login + salvar perfil + query) deve ser reconfirmado pelo usuário, já que o endpoint `localhost:5000` passou a ser o Nginx.
+
+### 7.7 A fazer na Fase 7 (próximas partes)
+
+Terminação TLS + HSTS, Grafana + Prometheus funcional (coleta e dashboards da seção 6), store compartilhado (Redis) para o `flask-limiter` e build de produção do frontend (hoje falha nos erros de TypeScript herdados).
+
+## 8. Recomendações priorizadas
 
 _A preencher._

@@ -1,0 +1,17 @@
+$ curl -i localhost:5000/health   (headers via Nginx)
+
+HTTP/1.1 200 OK
+Server: nginx/1.27.5
+Date: Tue, 27 Oct 2026 01:45:01 GMT
+Content-Type: application/json
+Content-Length: 16
+Connection: keep-alive
+X-Backend-Instance: backend1
+Access-Control-Allow-Origin: http://127.0.0.1:3000
+Vary: Origin
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'
+
+{"status":"ok"}

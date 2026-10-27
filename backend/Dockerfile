@@ -18,4 +18,5 @@ USER appuser
 
 EXPOSE 5000
 
-CMD ["flask", "--app", "endpoints", "run", "--host", "0.0.0.0", "--port", "5000"]
+# Servidor WSGI; 1 worker por instância, a escala é por mais instâncias atrás do Nginx.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "endpoints:app"]

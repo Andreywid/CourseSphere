@@ -1,5 +1,6 @@
 import logging
 import os
+import socket
 import time
 import uuid
 from flask import Flask, request, jsonify, g
@@ -43,6 +44,9 @@ logging.getLogger("werkzeug").setLevel(logging.WARNING)
 # No auth, no rate limit. In production /metrics must sit on an internal network.
 metrics = PrometheusMetrics(app)
 
+# Instância que atendeu a requisição (atrás do balanceador).
+INSTANCE = os.environ.get("INSTANCE_NAME") or socket.gethostname()
+
 
 @app.before_request
 def _start_request():
@@ -53,8 +57,10 @@ def _start_request():
 @app.after_request
 def _log_request(response):
     # request.path never includes the query string, so no token can leak here.
+    response.headers["X-Backend-Instance"] = INSTANCE
     app.logger.info("request", extra={
         "event": "request",
+        "instance": INSTANCE,
         "request_id": getattr(g, "request_id", None),
         "method": request.method,
         "path": request.path,

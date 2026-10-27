@@ -1,0 +1,9 @@
+# Logs JSON das 2 instâncias (campo "instance"), tokens ausentes — 26/10/2026
+# backend1:
+{"asctime": "2026-10-27 01:45:24,053", "levelname": "INFO", "name": "endpoints", "message": "request", "event": "request", "instance": "backend1", "request_id": "5a755db028e84e81b36e7fbee08166cd", "method": "POST", "path": "/users/query", "route": "/users/query", "status": 200, "latency_ms": 0.46}
+{"asctime": "2026-10-27 01:45:24,067", "levelname": "INFO", "name": "endpoints", "message": "request", "event": "request", "instance": "backend1", "request_id": "b0b044c1170d454da774cc660964dc7f", "method": "POST", "path": "/users/query", "route": "/users/query", "status": 200, "latency_ms": 0.49}
+{"asctime": "2026-10-27 01:45:24,082", "levelname": "INFO", "name": "endpoints", "message": "request", "event": "request", "instance": "backend1", "request_id": "cffd7df300c94a168ba9c48e684d08cd", "method": "POST", "path": "/users/query", "route": "/users/query", "status": 200, "latency_ms": 0.45}
+# backend2:
+{"asctime": "2026-10-27 01:45:24,059", "levelname": "INFO", "name": "endpoints", "message": "request", "event": "request", "instance": "backend2", "request_id": "70f9f16e6463497c979c7ccad4711de7", "method": "POST", "path": "/users/query", "route": "/users/query", "status": 200, "latency_ms": 0.39}
+{"asctime": "2026-10-27 01:45:24,075", "levelname": "INFO", "name": "endpoints", "message": "request", "event": "request", "instance": "backend2", "request_id": "ca43912870334e2ea798e7190eec5ca1", "method": "POST", "path": "/users/query", "route": "/users/query", "status": 200, "latency_ms": 0.41}
+{"asctime": "2026-10-27 01:45:24,089", "levelname": "INFO", "name": "endpoints", "message": "request", "event": "request", "instance": "backend2", "request_id": "c37071228e0f43f4a6533ecfd3b8e377", "method": "POST", "path": "/users/query", "route": "/users/query", "status": 200, "latency_ms": 0.39}
