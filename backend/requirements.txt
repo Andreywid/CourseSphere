@@ -5,5 +5,6 @@ flask-limiter
 gunicorn
 prometheus-flask-exporter
 python-json-logger
+redis
 openai
 pandas

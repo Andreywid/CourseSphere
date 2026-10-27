@@ -27,6 +27,7 @@ Esta pasta guarda os prints e logs que sustentam o [relatório](../report.md).
 | `infra/load-balancing.txt` | 20 requisições a `/health` via Nginx mostrando o header `X-Backend-Instance` alternar, com o agregado 10/10 (round-robin das duas instâncias). | Seção 7.5 | Capturado em 26/10/2026 |
 | `infra/backend-instances.log` | Linhas de log JSON de `backend1` e `backend2` (campo `instance`), provando que as duas instâncias atendem requisições; sem token. | Seção 7.5 | Capturado em 26/10/2026 |
 | `infra/security-headers.txt` | `curl -i localhost:5000/health` via Nginx, com os quatro headers de segurança e um único `Access-Control-Allow-Origin`. | Seção 7.4 | Capturado em 26/10/2026 |
+| `infra/rate-limit-global.txt` | 7 requisições a `/users/create` alternando `backend1`/`backend2`: 5 passam somadas e a 6ª dá HTTP 429 (limite global via Redis, compartilhado entre as instâncias). | Seção 6.4 | Capturado em 26/10/2026 |
 
 ## Antes de salvar um arquivo
 

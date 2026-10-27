@@ -22,8 +22,13 @@ CORS(
     allow_headers=["Content-Type", "Authorization"],
 )
 
-# Rate limiting for the endpoints the backend exposes (in-memory store, per client IP).
-limiter = Limiter(get_remote_address, app=app)
+# Rate limit por IP; o storage vem do ambiente (Redis no compose) para o limite ser
+# global entre as instâncias; cai para memória em execução avulsa.
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+)
 
 @limiter.request_filter
 def exempt_preflight():
@@ -42,7 +47,10 @@ logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 # Prometheus metrics at /metrics: request count and latency by path and status.
 # No auth, no rate limit. In production /metrics must sit on an internal network.
-metrics = PrometheusMetrics(app)
+# Os buckets de latência incluem 0,3s para casar com o SLO de 300ms.
+metrics = PrometheusMetrics(app, buckets=(
+    0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.3, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0,
+))
 
 # Instância que atendeu a requisição (atrás do balanceador).
 INSTANCE = os.environ.get("INSTANCE_NAME") or socket.gethostname()

@@ -360,6 +360,8 @@ Adicionado ao `backend/endpoints.py`:
 - **`/metrics` (Prometheus):** `prometheus-flask-exporter`, sem autenticação e sem rate limit, com contagem e latência de requisição por rota e status. **Em produção, `/metrics` deve ficar em rede interna, não exposto publicamente.**
 - **Verificado (26/10/2026):** nenhum token nos logs (inclusive um token malformado enviado de propósito), `/health` e `/metrics` em 200, e o baseline intacto.
 
+**Stack de observabilidade funcional (diferencial, ambiente de teste):** o `docker-compose.yml` sobe Prometheus (raspa `/metrics` de `backend1` e `backend2` direto, a cada 15s), Grafana (dashboard provisionado, seção 6.3) e Redis (store compartilhado do rate limiter, seção 6.4). Em produção seriam serviços gerenciados ou internos, não publicados.
+
 ### 6.2 SLIs e SLOs
 
 Um SLI é a razão de eventos bons sobre o total de eventos válidos:
@@ -387,28 +389,28 @@ $$\text{SLI}_{\text{lat}} = \frac{\#\{\text{req com duração} < 300\,\text{ms}\
 - **PromQL:**
 
 ```promql
-sum(rate(flask_http_request_duration_seconds_bucket{le="0.25"}[28d]))
+sum(rate(flask_http_request_duration_seconds_bucket{le="0.3"}[28d]))
 /
 sum(rate(flask_http_request_duration_seconds_count[28d]))
 ```
 
-- **Nota:** os buckets padrão do histograma não incluem 0,3 s; a query usa `le="0.25"` (250 ms, o bucket mais próximo e um pouco mais rígido). Para um corte exato em 300 ms, configurar um bucket `0.3` no exporter na Fase 7.
+- **Nota:** o `prometheus-flask-exporter` foi configurado com um bucket `0.3` no histograma (diferencial, Fase 7 parte 2), então a query casa exatamente com o SLO de 300 ms.
 
 ### 6.3 Dashboard (Grafana)
 
 Painéis:
 
 - **Taxa de requisição** por rota: `sum by (path) (rate(flask_http_request_duration_seconds_count[5m]))`.
-- **Taxa de erro 5xx:** `sum(rate(flask_http_request_duration_seconds_count{status=~"5.."}[5m])) / sum(rate(flask_http_request_duration_seconds_count[5m]))`.
+- **Taxa de erro 5xx:** `(sum(rate(flask_http_request_duration_seconds_count{status=~"5.."}[5m])) or vector(0)) / sum(rate(flask_http_request_duration_seconds_count[5m]))` (o `or vector(0)` mostra 0 quando não há erro).
 - **Latência p50/p95/p99:** `histogram_quantile(0.5, sum by (le) (rate(flask_http_request_duration_seconds_bucket[5m])))` (e idem para 0.95 e 0.99).
 - **Os 2 SLIs vs SLO:** as razões de 6.2, com linhas de meta em 99,5% e 95%.
 
-O Grafana + Prometheus funcional (coleta, dashboards e alertas) entra na **Fase 7 (infra)**, junto do Nginx.
+O dashboard é **provisionado e funcional** (diferencial, Fase 7 parte 2): datasource Prometheus e os painéis vêm de arquivos em `observability/grafana/provisioning/` e `observability/grafana/dashboards/coursesphere.json`, sem clique manual. O dashboard `CourseSphere — SRE` (uid `coursesphere-sre`) aparece no Grafana em `localhost:3001`. Alertas ligados aos SLOs ficam para uma próxima parte.
 
 ### 6.4 Riscos de disponibilidade e resiliência
 
 - **Backend como ponto único.** Um só container Flask, sem balanceador nem réplica, servido pelo servidor de desenvolvimento do Flask: se ele cai, a API cai. **Resiliência:** rodar sob um WSGI de produção (gunicorn) com múltiplos workers atrás do Nginx, usar `/health` como liveness/readiness e, depois, mais de uma réplica.
-- **Rate limiter em memória.** Os limites vivem no processo (o aviso aparece no boot); reiniciar zera a contagem e, com vários processos ou réplicas, cada um conta em separado, afrouxando o limite. **Resiliência:** store compartilhado (Redis) para o `flask-limiter`.
+- **Rate limiter (Redis, diferencial).** O `flask-limiter` passou a usar o Redis como store compartilhado (`RATELIMIT_STORAGE_URI`), então o limite é **global** entre `backend1` e `backend2` (verificado: 5 requisições somadas passam e a 6ª dá HTTP 429, mesmo caindo na outra instância). **Ressalva honesta:** atrás do Nginx, `get_remote_address` enxerga o IP do proxy, então o limite hoje é global por endpoint para todos os clientes, não por cliente real; o limite por cliente exige confiar no `X-Forwarded-For` (ex.: `ProxyFix`). O Redis do ambiente de teste não tem persistência; em produção seria um Redis gerenciado.
 - **Dependência do Firebase.** Auth e RTDB são externos; indisponibilidade ou latência do Firebase degrada login, perfil e chat. **Resiliência:** definir timeouts nas chamadas, manter o tratamento de erro genérico (ACH-03) e monitorar a taxa de erro e a latência das rotas que chamam o Firebase, com alerta ligado aos SLOs.
 
 ## 7. Infraestrutura e escalabilidade (Fase 7)
@@ -473,7 +475,7 @@ alterna `backend1` e `backend2`. Evidências em [`evidence/infra/`](evidence/REA
 
 ### 7.7 A fazer na Fase 7 (próximas partes)
 
-Terminação TLS + HSTS, Grafana + Prometheus funcional (coleta e dashboards da seção 6), store compartilhado (Redis) para o `flask-limiter` e build de produção do frontend (hoje falha nos erros de TypeScript herdados).
+Parte 2 (diferencial) concluída: Prometheus + Grafana provisionado + Redis para o rate limiter + bucket de 0,3 s (ver seção 6). Falta: terminação TLS + HSTS, alertas ligados aos SLOs, rate limit por cliente real (`X-Forwarded-For`/`ProxyFix`) e build de produção do frontend (hoje falha nos erros de TypeScript herdados).
 
 ## 8. Recomendações priorizadas
 

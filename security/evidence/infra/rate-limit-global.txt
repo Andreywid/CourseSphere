@@ -1,0 +1,16 @@
+# Rate limiting global via Redis — 26/10/2026
+# flask-limiter com storage_uri=redis://redis:6379 (store compartilhado entre backend1 e backend2).
+# 7 requisições a POST /users/create {} alternando as instâncias (de dentro da rede).
+# Limite: 5/min por chave. A chave é a mesma no Redis para as duas instâncias, então a contagem é global:
+# os 5 primeiros passam (HTTP 400, corpo vazio) e o 6º já dá 429, mesmo caindo no backend2.
+
+req 1 -> backend1: HTTP 400
+req 2 -> backend2: HTTP 400
+req 3 -> backend1: HTTP 400
+req 4 -> backend2: HTTP 400
+req 5 -> backend1: HTTP 400
+req 6 -> backend2: HTTP 429
+req 7 -> backend1: HTTP 429
+
+# Chave única no Redis (prova do store compartilhado):
+LIMITS:LIMITER/<ip>/create_user/5/1/minute

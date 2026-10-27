@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Raspa cada instância direto (não via Nginx, senão o round-robin dá scrape inconsistente).
+  - job_name: coursesphere-backend
+    static_configs:
+      - targets: ['backend1:5000', 'backend2:5000']

@@ -31,7 +31,7 @@ Metodologia: análise manual guiada pelo OWASP WSTG, mais SAST, SCA e DAST, com 
 | 0 | Ambiente isolado e baseline | Concluída em 23/10/2026 |
 | 1 | Reconhecimento (inventário de rotas) | Concluída em 23/10/2026 |
 | 2 | SAST, SCA, DAST e formalização dos achados (CVSS 3.1, reprodução e impacto) | Em andamento: SAST e SCA concluídos; ACH-01, 03, 08, 09, 10, 11 e 12 formalizados; evidência do ACH-03, ACH-09 e ACH-12 capturada |
-| Próximas | Infra (Fase 7) | Fases 5 (hardening) e 6 (observabilidade) concluídas; Fase 7 parte 1 feita (Nginx + 2 backends gunicorn + headers de segurança); falta TLS/HSTS, Grafana/Prometheus e Redis para o rate limiter |
+| Próximas | Infra (Fase 7) | Fases 5 e 6 concluídas; Fase 7 parte 1 (Nginx + 2 backends gunicorn + headers) e parte 2 — diferencial (Prometheus + Grafana provisionado + Redis + bucket 0,3s) feitas; falta TLS/HSTS e alertas |
 
 ## Como rodar
 
@@ -65,7 +65,9 @@ docker compose up --build
 ```
 
 - Frontend: http://localhost:3000
-- Backend: http://localhost:5000
+- Backend (via Nginx): http://localhost:5000
+- Grafana (dashboard SRE, login anônimo): http://localhost:3001
+- Prometheus: http://localhost:9090
 
 O frontend chama o backend em `http://127.0.0.1:5000`, endereço fixo no código, então abra o frontend na mesma máquina que roda o Docker. Para parar: `docker compose down`.
 
@@ -141,6 +143,7 @@ Mudanças mínimas, registradas no relatório (seções 2.4 e 4):
 - Hardening da Fase 5 (`backend/endpoints.py`, `requirements.txt`, Dockerfiles): debug desligado por padrão (fecha ACH-11), CORS por allowlist, rate limiting com `flask-limiter` (endurece ACH-09) e containers não-root (fecha ACH-01). Headers de segurança (CSP, HSTS...) ficam para o Nginx na Fase 7.
 - Observabilidade da Fase 6 (`backend/endpoints.py`, `requirements.txt`): logs estruturados em JSON (sem token), eventos de autenticação, `/health` e `/metrics` (Prometheus). SLIs/SLOs e o dashboard estão no relatório (seção 6); Grafana + Prometheus funcional entra na Fase 7.
 - Infra da Fase 7, parte 1 (`docker-compose.yml`, `nginx/nginx.conf`, `backend/Dockerfile`, `requirements.txt`): backend sob gunicorn, duas instâncias (`backend1`/`backend2`) atrás de um Nginx que balanceia em round-robin, com headers de segurança no Nginx. O frontend chama `localhost:5000`, que agora é o Nginx (seção 7).
+- Infra da Fase 7, parte 2 — diferencial (`docker-compose.yml`, `observability/`, `backend/`): Prometheus + Grafana provisionado (dashboard SRE), Redis como store compartilhado do rate limiter (limite global entre instâncias) e bucket de latência de 0,3 s. Prometheus/Grafana/Redis são do ambiente de teste (seção 6).
 - Higiene do repositório: removidos arquivos `.DS_Store`, pastas `.idea/` e um `package-lock.json` vazio na raiz, versionados por engano no original. No `.gitignore`, o padrão `*config.json` virou `config.json`, porque também casava com `frontend/tsconfig.json`, e `__pycache__/` foi incluído.
 
 ## Estrutura do repositório
@@ -156,6 +159,7 @@ frontend/                       aplicação React
 experiment/                     notebook de experimento do repositório original
 docker-compose.yml              ambiente isolado (Nginx + 2 backends + frontend)
 nginx/nginx.conf                balanceador e headers de segurança
+observability/                  Prometheus e Grafana provisionado (dashboard SRE)
 database.rules.json             regras do Realtime Database (acesso de cliente negado)
 firebase.json                   aponta o Firebase CLI para as regras
 security/
