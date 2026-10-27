@@ -1,11 +1,14 @@
 # Relatório Técnico de Segurança e Confiabilidade - CourseSphere
 
-> **Status:** rascunho preenchido de forma incremental. Fase 0 (ambiente isolado e baseline) concluída em 23/10/2026; na Fase 2, os achados ACH-01, 03, 08, 09, 10 e 11 foram formalizados em 24/10/2026 e o ACH-12 em 25/10/2026, quando também foram evidenciadas as reproduções do ACH-03 e do ACH-09. Na Fase 4, o ACH-12 foi corrigido e validado em 25/10/2026, e o ACH-08 e o ACH-03 foram corrigidos e validados em 26/10/2026. As seções 1, 5 e 6 são placeholders, e a seção 4 lista as correções.
-> O documento não contém segredos. Prints e logs ficam em [`evidence/`](evidence/README.md). O inventário de rotas que abre a Fase 1 está em [`recon.md`](recon.md).
+> Autor: Andreywid. Data: 27/10/2026. Ambiente: teste isolado em Docker, com projeto Firebase próprio. Status: concluído. O documento não contém segredos.
 
-## 1. Sumário executivo
+## 1. Resumo
 
-_A preencher ao final do trabalho._
+O CourseSphere é um assistente web de recomendação de cursos: backend Flask, frontend React, Firebase para login e banco (Realtime Database). Avaliei segurança e confiabilidade no escopo do desafio, em ambiente Docker isolado com um projeto Firebase próprio (detalhes nas seções 2 e 3).
+
+Foram 11 achados. O mais grave, de longe: as regras do Realtime Database estavam em modo de teste, com `.read` e `.write` liberados, então qualquer um sem login lia e escrevia no banco inteiro. Priorizei esse por ser o único que atingia todos os usuários: travei as regras para negar acesso direto de cliente e deixei o backend como único caminho até o banco. No mesmo lote: token fora da URL e dos logs, erros sem detalhe interno, debug desligado e containers não-root.
+
+Dos 11, corrigi 6 (4 na raiz), validados no ambiente de teste; um é injeção de SQL num módulo desligado hoje. Três seguem abertos: senha fraca, uma falha silenciosa no cliente e um endpoint placeholder que o frontend chama. E o limite de requisições, atrás do Nginx, conta pelo IP do proxy, então vale por endpoint e não por cliente. Se eu seguisse, atacava isso e a autenticação opcional do `/users/query`, que aceita token inválido em silêncio.
 
 ## 2. Escopo e metodologia
 
@@ -90,17 +93,17 @@ Formalização entre 24/10/2026 e 25/10/2026. Os achados ACH-01, 03, 08, 09, 10,
 | 5 | ACH-01 | Container executa como root | Não atribuído | Baixo | Corrigido (não-root, seção 5.4) |
 | 6 | ACH-09 | `/users/query`: autenticação opcional quebrada (fail-open) | Não atribuído | Baixo | Rate limiting aplicado; fail-open aberto (5.3) |
 | 7 | ACH-10 | SQL montado por f-string (blueprint inativo) | 7.5 | Alto (inerente) | Latente e não funcional |
-| — | ACH-04 | Endpoint placeholder `/theactualbackendlink` | A definir | Baixo (preliminar) | Aberto |
-| — | ACH-05 | Cadastro aceita senha de 6 caracteres | A definir | A avaliar | A avaliar |
-| — | ACH-06 | URL do RTDB fixa no código | A definir | Menor (preliminar) | Corrigido e validado |
-| — | ACH-07 | Falha silenciosa no cliente | A definir | A definir | Aberto |
-| — | ACH-02 | Consolidado no ACH-03 | — | — | — |
+| - | ACH-04 | Endpoint placeholder `/theactualbackendlink` | A definir | Baixo (preliminar) | Aberto |
+| - | ACH-05 | Cadastro aceita senha de 6 caracteres | A definir | A avaliar | A avaliar |
+| - | ACH-06 | URL do RTDB fixa no código | A definir | Menor (preliminar) | Corrigido e validado |
+| - | ACH-07 | Falha silenciosa no cliente | A definir | A definir | Aberto |
+| - | ACH-02 | Consolidado no ACH-03 | - | - | - |
 
 Ordem por risco prático: primeiro o ACH-12, crítico (corrigido e validado em 25/10/2026); depois o que se manifesta no ambiente fornecido (ACH-08 e ACH-03, corrigidos e validados, na ordem por score), o que depende do modo de execução (ACH-11, corrigido na Fase 5), o hardening (ACH-01, corrigido, e ACH-09, endurecido com rate limiting, mas com o fail-open ainda aberto) e, por último, o ACH-10, latente e não funcional (blueprint inativo, e `db.py` impede o retorno dos dados) apesar do score inerente alto. ACH-04 a ACH-07 ainda não têm CVSS e ficam fora do ranking.
 
 Severidade "inerente" é o score do código como escrito, assumindo as condições do achado (ACH-10: blueprint ativado; ACH-11: execução por `python endpoints.py`). O ambiente fornecido não está nessas condições.
 
-### 3.1 ACH-01 — Container executa como root
+### 3.1 ACH-01: Container executa como root
 
 - **Classificação:** Baixo (hardening e defesa em profundidade). CVSS 3.1 não atribuído. Justificativa: o item não é explorável sozinho; amplifica o impacto de qualquer execução de código no container.
 - **CWE:** CWE-250 (execução com privilégios desnecessários).
@@ -116,11 +119,11 @@ Severidade "inerente" é o score do código como escrito, assumindo as condiçõ
 - **Causa raiz:** as imagens não criam nem selecionam um usuário não-root.
 - **Situação:** Corrigido na Fase 5 (container não-root, seção 5.4).
 
-### 3.2 ACH-02 — Consolidado no ACH-03
+### 3.2 ACH-02: Consolidado no ACH-03
 
 O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exceção interna) passou a ser o caso principal do ACH-03. O ID ACH-02 não é mais usado.
 
-### 3.3 ACH-03 — Vazamento de detalhe de erro ao cliente (inclui o antigo ACH-02)
+### 3.3 ACH-03: Vazamento de detalhe de erro ao cliente (inclui o antigo ACH-02)
 
 - **CVSS 3.1:** `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N` = **5.3 (Médio)**. Justificativa: detalhe interno de exceção devolvido ao cliente, trivialmente disparável e útil para reconhecimento.
 - **CWE:** CWE-209 (mensagem de erro com informação sensível) e CWE-20 (validação de entrada imprópria).
@@ -133,12 +136,12 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
   3. Repetir com `-H 'Authorization: Basic abc'` (sem o prefixo `Bearer `) e observar HTTP 500 com `list index out of range`.
   4. Nas demais rotas, um `id_token` inválido fazia a resposta HTTP 400 incluir a mensagem interna do `firebase_admin`, com o valor enviado.
   Depois da correção (seção 4.4): `POST /hash` e `GET /users/info` sem header devolvem HTTP 401 genérico, e uma exceção inesperada devolve HTTP 500 `Internal server error`, com o detalhe só no log do servidor.
-- **Evidência:** antes — [`evidence/ACH-03/hash-no-auth-500.txt`](evidence/ACH-03/hash-no-auth-500.txt) (HTTP 500 com a exceção interna, 25/10/2026). Depois — [`evidence/ACH-03/hash-no-auth-401.txt`](evidence/ACH-03/hash-no-auth-401.txt) e [`evidence/ACH-03/users-info-no-auth-401.txt`](evidence/ACH-03/users-info-no-auth-401.txt) (HTTP 401 genérico, 26/10/2026).
+- **Evidência:** antes: [`evidence/ACH-03/hash-no-auth-500.txt`](evidence/ACH-03/hash-no-auth-500.txt) (HTTP 500 com a exceção interna, 25/10/2026). Depois: [`evidence/ACH-03/hash-no-auth-401.txt`](evidence/ACH-03/hash-no-auth-401.txt) e [`evidence/ACH-03/users-info-no-auth-401.txt`](evidence/ACH-03/users-info-no-auth-401.txt) (HTTP 401 genérico, 26/10/2026).
 - **Impacto de negócio:** expõe internals (bibliotecas, estrutura do código) a um cliente não autenticado, o que facilita um ataque dirigido.
 - **Causa raiz:** exceções capturadas de forma genérica, com `str(e)` devolvido ao cliente, e entrada não validada nas rotas que leem o header.
 - **Situação:** Corrigido e validado em 26/10/2026 (seção 4.4).
 
-### 3.4 ACH-04 — Endpoint placeholder `/theactualbackendlink` chamado pelo frontend
+### 3.4 ACH-04: Endpoint placeholder `/theactualbackendlink` chamado pelo frontend
 
 - **Localização:** `frontend/src/components/UserChats/UserChats.tsx:25` (chamada), `:33-35` (erro quando a resposta não é OK) e `:41` (toast "Failed to fetch your chats"). O componente é renderizado em `frontend/src/pages/home/Home.tsx:9`, na rota `/` (`App.tsx:43`).
 - **Descrição:** `UserChats` faz `GET http://127.0.0.1:5000/theactualbackendlink` assim que há usuário autenticado. A rota não existe em `backend/endpoints.py` (rotas nas linhas 23 a 126) nem em `backend/blueprints/`, e a string não aparece em nenhum outro arquivo do repositório.
@@ -146,14 +149,14 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Evidência:** [`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log) (linhas `OPTIONS /theactualbackendlink` com HTTP 404, sem `GET` correspondente).
 - **Classificação preliminar:** qualidade de código / baixo.
 
-### 3.5 ACH-05 — Cadastro aceita senha de 6 caracteres (fraco, a avaliar)
+### 3.5 ACH-05: Cadastro aceita senha de 6 caracteres (fraco, a avaliar)
 
 - **Localização:** `backend/endpoints.py:28-31` (única validação: e-mail e senha não vazios) e `frontend/src/pages/signup/SignUp.tsx:16` (o botão só exige campos não vazios).
 - **Descrição:** no baseline, o cadastro aceitou uma senha numérica sequencial de 6 caracteres. Nem backend nem frontend aplicam política de senha além de "não vazia". O único limite efetivo vem do `firebase_admin`, que exige no mínimo 6 caracteres (`firebase_admin._auth_utils.validate_password`, verificado na versão instalada na imagem do backend).
 - **Observação:** 6 caracteres é o mínimo padrão do Firebase Authentication. O item só vira achado se houver política esperada acima disso. A política de senha configurável no projeto Firebase não foi verificada.
 - **Severidade:** a definir na Fase 2.
 
-### 3.6 ACH-06 — URL do RTDB fixa no código, acoplada ao projeto do autor do repositório (corrigido)
+### 3.6 ACH-06: URL do RTDB fixa no código, acoplada ao projeto do autor do repositório (corrigido)
 
 - **Localização:** `backend/firebase.py:5` no código original (commit `68e6a44`): `database_url` com a URL do RTDB do projeto do autor, passada a `initialize_app` na linha seguinte. Era a única ocorrência da URL no repositório.
 - **Descrição:** a URL não era configurável e apontava para um projeto Firebase diferente do projeto das credenciais usadas no ambiente de teste. Na primeira execução do baseline, as rotas que dependem do RTDB (`POST` e `GET /users/info`) retornaram HTTP 400, enquanto as que só usam o Authentication (`POST /users/create`, `POST /hash`) retornaram 200. O log dessa execução não foi preservado.
@@ -162,7 +165,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Evidência:** [`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log) (linhas `POST /users/info` e `GET /users/info` com HTTP 200).
 - **Classificação preliminar:** configuração / menor.
 
-### 3.7 ACH-07 — Falha silenciosa no cliente: a interface exibe sucesso com HTTP 400
+### 3.7 ACH-07: Falha silenciosa no cliente: a interface exibe sucesso com HTTP 400
 
 - **Localização:** `frontend/src/api.ts:168-170` (`saveProfileChanges`: o `.then` exibe "Successfully saved your information!" sem verificar `response.ok`).
 - **Descrição:** `fetch` só rejeita a promessa em falha de rede; respostas HTTP 4xx e 5xx resolvem normalmente. Como o `.then` não examina o status, o toast de sucesso aparece mesmo quando o backend rejeita a gravação, e o `.catch` (linhas 171-173) só trata falha de rede. O erro do backend fica mascarado para o usuário.
@@ -170,7 +173,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Observado:** na primeira execução do baseline, antes da correção do ACH-06, `POST /users/info` retornou HTTP 400 e a interface exibiu o toast de sucesso. O log dessa execução não foi preservado.
 - **Severidade:** a definir na Fase 2.
 
-### 3.8 ACH-08 — `id_token` na URL de `GET /users/info` e registrado no log do Flask
+### 3.8 ACH-08: `id_token` na URL de `GET /users/info` e registrado no log do Flask
 
 - **CVSS 3.1:** `CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:L/A:N` = **6.5 (Médio)**. Justificativa: credencial bearer exposta em query string e registrada em log; a exploração depende de alcançar o canal de vazamento dentro da janela de validade do token.
 - **CWE:** CWE-598 (uso de GET com dado sensível na query string) e CWE-532 (informação sensível em arquivo de log).
@@ -187,7 +190,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Causa raiz:** credencial na query string de uma requisição `GET`.
 - **Situação:** Corrigido e validado: corrigido no código em 25/10/2026 (seção 4.3) e validado com login real em 26/10/2026 ([`evidence/ACH-08/after-fix-no-token.log`](evidence/ACH-08/after-fix-no-token.log)).
 
-### 3.9 ACH-09 — Autenticação opcional quebrada em `/users/query` (fail-open e sem limite de taxa)
+### 3.9 ACH-09: Autenticação opcional quebrada em `/users/query` (fail-open e sem limite de taxa)
 
 - **Classificação:** Baixo, latente. CVSS 3.1 não atribuído. Justificativa: o endpoint é público por desenho e hoje devolve só um stub; os defeitos são de hardening e ganham peso quando a lógica for concluída. O item foi reenquadrado: antes era tratado como ausência de autenticação (CWE-306, 5.3).
 - **CWE:** CWE-636 (falha aberta, em vez de falhar de forma segura).
@@ -201,9 +204,9 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Evidência:** [`evidence/ACH-09/users-query-no-auth.txt`](evidence/ACH-09/users-query-no-auth.txt), capturada em 25/10/2026 (sem token e sem `Authorization`, HTTP 200). Ela continua válida: mostra que o endpoint responde a anônimos, o comportamento público esperado. O fail-open com token inválido foi verificado em teste local isolado e não tem arquivo de evidência.
 - **Impacto de negócio:** usuários logados são tratados como anônimos e um token inválido não gera erro. Quando a lógica passar a usar dados do usuário, a personalização não funcionará e as falhas de autenticação ficarão invisíveis; sem limite de taxa, um endpoint público fica exposto a abuso quando o handler passar a executar trabalho caro.
 - **Causa raiz:** o contrato de autenticação opcional não está implementado de ponta a ponta: o cliente envia o token de forma errada e o servidor trata qualquer falha como anônimo.
-- **Situação:** Parcialmente endurecido na Fase 5 — rate limiting aplicado (seção 5.3); o fail-open da autenticação opcional (token como Promise, rebaixamento silencioso) segue aberto.
+- **Situação:** Parcialmente endurecido na Fase 5: rate limiting aplicado (seção 5.3); o fail-open da autenticação opcional (token como Promise, rebaixamento silencioso) segue aberto.
 
-### 3.10 ACH-10 — SQL montado por f-string em `blueprints/courses.py` (blueprint inativo)
+### 3.10 ACH-10: SQL montado por f-string em `blueprints/courses.py` (blueprint inativo)
 
 - **CVSS 3.1:** `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N` = **7.5 (Alto, inerente)**. Justificativa: concatenar entrada em SQL permite ler o banco; o `execute` do `sqlite3` roda uma única instrução, então não há escrita. O score vale para o código como escrito: hoje o blueprint é inalcançável (ver pré-condições) e os dados são de cursos, públicos.
 - **CWE:** CWE-89 (injeção de SQL).
@@ -224,7 +227,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Causa raiz:** consulta montada por f-string, sem parametrização.
 - **Situação:** Latente e não funcional: o blueprint está inativo e, mesmo ativado, `db.py:11-12` impede que o resultado das consultas chegue ao cliente.
 
-### 3.11 ACH-11 — Modo debug do Flask habilitado no ponto de entrada
+### 3.11 ACH-11: Modo debug do Flask habilitado no ponto de entrada
 
 - **CVSS 3.1:** `CVSS:3.1/AV:L/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H` = **7.4 (Alto, inerente)**. Justificativa: `app.run(debug=True)` expõe o debugger interativo do Werkzeug (execução de código potencial, protegida por PIN, daí `AC:H`) e stack traces. No modo padrão (`python endpoints.py`) o servidor escuta só em `127.0.0.1`, porque `app.run` não recebe `host`, então o vetor é local. Se o processo for exposto (bind em `0.0.0.0` ou proxy), o vetor sobe para `AV:N` e o score para 8.1. O container do projeto roda pelo CLI do Flask com debug desligado; o score reflete o modo padrão do app.
 - **CWE:** CWE-489 (código de depuração ativo) e CWE-215 (informação sensível em código de depuração).
@@ -241,7 +244,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Causa raiz:** debug ligado no código, sem controle por configuração.
 - **Situação:** Corrigido na Fase 5 (debug desligado por padrão, seção 5.1): com `python endpoints.py`, `Debug mode: off` e `GET /console` → 404. A correção do ACH-03 (errorhandler global) já suprimia a página de stack trace; o debug desligado fecha também o `/console`.
 
-### 3.12 ACH-12 — Regras do Realtime Database abertas (modo de teste)
+### 3.12 ACH-12: Regras do Realtime Database abertas (modo de teste)
 
 - **CVSS 3.1:** `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H` = **9.8 (Crítico)**. Justificativa: qualquer cliente sem credenciais lê, altera e apaga os dados do banco pela API REST, sem interação do usuário e sem privilégio algum.
 - **CWE:** CWE-284 (controle de acesso impróprio) e CWE-862 (autorização ausente).
@@ -262,13 +265,13 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 
 Correções aplicadas até agora. As demais entram aqui conforme forem feitas.
 
-### 4.1 ACH-06 — URL do RTDB externalizada
+### 4.1 ACH-06: URL do RTDB externalizada
 
 - **Alteração:** `backend/firebase.py` (linhas 6-11) lê a URL de `FIREBASE_DB_URL`, sem valor padrão, e levanta `RuntimeError` com mensagem explícita se a variável estiver ausente ou vazia. O `docker-compose.yml` define a variável no serviço `backend` com o `databaseURL` de `frontend/src/firebaseConfig.ts`, que é a fonte única do valor.
 - **Verificação local** (container sem rede, com credencial de teste descartável): sem a variável, ou com ela vazia, o backend não sobe e exibe a mensagem de erro; com a variável, sobe e o `firebase_admin` usa exatamente o valor informado. O valor do `docker-compose.yml` é igual ao `databaseURL` de `frontend/src/firebaseConfig.ts`.
 - **Validação:** em 23/10/2026, com credenciais reais, `POST /users/info` e `GET /users/info` retornaram HTTP 200 ([`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log)).
 
-### 4.2 ACH-12 — Regras do Realtime Database restritas
+### 4.2 ACH-12: Regras do Realtime Database restritas
 
 - **Alteração:** dois arquivos novos na raiz do repositório. `database.rules.json` define `.read` e `.write` como `false`, e `firebase.json` aponta para ele (`database.rules`). As regras passam a ser versionadas.
 - **Por que `false` e não regras por usuário:** o frontend não lê nem escreve no RTDB. Ele importa `getDatabase` (`api.ts:4`, `Nav.tsx:20`, `UserChats.tsx:4`) e cria a variável `database` (`api.ts:9`, `Nav.tsx:24`, `UserChats.tsx:10`), mas nunca a usa: não há chamada a `ref`, `get`, `set` nem `onValue` em `frontend/src`. Todo acesso ao RTDB passa pelo backend (`firebase.py`), que usa o Admin SDK e ignora as regras (comportamento documentado do Firebase). Regras por `auth.uid === $uid` em `users/$uid` só seriam necessárias se o frontend passasse a acessar o banco direto.
@@ -276,7 +279,7 @@ Correções aplicadas até agora. As demais entram aqui conforme forem feitas.
 - **Verificação pós-aplicação:** (1) a leitura sem credenciais é negada com HTTP 401 (`Permission denied`), em [`evidence/ACH-12/unauth-denied-after-lock.txt`](evidence/ACH-12/unauth-denied-after-lock.txt); (2) o fluxo do baseline continua funcionando, com `GET /users/info` e `POST /users/info` retornando HTTP 200, em [`evidence/ACH-12/baseline-after-lock.txt`](evidence/ACH-12/baseline-after-lock.txt). Um teste de unidade das regras (emulador do Firebase) previne regressão: ver seção 7.9.
 - **Validação local:** os dois arquivos são JSON válido e `firebase.json` aponta para um arquivo existente.
 
-### 4.3 ACH-08 — Token no header `Authorization`
+### 4.3 ACH-08: Token no header `Authorization`
 
 - **Causa raiz:** credencial na query string de um `GET`, que o log de acesso do Flask registra junto com a URL.
 - **Alteração:**
@@ -293,7 +296,7 @@ Correções aplicadas até agora. As demais entram aqui conforme forem feitas.
 - **Efeito colateral:** sem o header, `GET /users/info` passa a responder como `/hash` e `/chats/*` (exceção interna no corpo, HTTP 400). Isso entra no ACH-03.
 - **Validação com login real** (26/10/2026): abrindo o Dashboard e salvando o perfil, o log registra `GET /users/info` (duas vezes) e `POST /users/info` com HTTP 200, e nenhuma URL com `?id_token=`; o preflight passou a ser `OPTIONS /users/info`, sem query string. Evidência: [`evidence/ACH-08/after-fix-no-token.log`](evidence/ACH-08/after-fix-no-token.log).
 
-### 4.4 ACH-03 — Erro genérico ao cliente e validação do header
+### 4.4 ACH-03: Erro genérico ao cliente e validação do header
 
 - **Causa raiz (dupla):** (1) cada rota capturava `Exception` e devolvia `str(e)` ao cliente; (2) as rotas que liam o token do header faziam `.split("Bearer ")[1]` sem validar a presença do header, o que estourava a exceção e, no `/hash`, virava HTTP 500.
 - **Alteração** (`backend/endpoints.py`):
@@ -309,7 +312,7 @@ Correções aplicadas até agora. As demais entram aqui conforme forem feitas.
   - `GET /users/info` com `Bearer invalido` → HTTP 400 `Could not get user info`; o detalhe (`InvalidIdTokenError`) aparece só no log do servidor.
   - Exceção inesperada (`POST /users/create` com corpo `null`) → HTTP 500 `Internal server error`, sem stack trace no corpo; `GET /rota-inexistente` continua 404.
   - As rotas de chat sem header → HTTP 401; `POST /users/query` sem token segue HTTP 200 (ACH-09, não tocado).
-- **Baseline:** validado com login real em 26/10/2026 — com um `Bearer <token>` válido, `GET /users/info` (várias vezes) e `POST /users/info` retornaram HTTP 200, e nenhuma URL traz o token. Evidência: [`evidence/ACH-03/baseline-after-fix-200.log`](evidence/ACH-03/baseline-after-fix-200.log).
+- **Baseline:** validado com login real em 26/10/2026, com um `Bearer <token>` válido, `GET /users/info` (várias vezes) e `POST /users/info` retornaram HTTP 200, e nenhuma URL traz o token. Evidência: [`evidence/ACH-03/baseline-after-fix-200.log`](evidence/ACH-03/baseline-after-fix-200.log).
 - **Efeito no ACH-11:** o errorhandler global já suprime a página de stack trace nas exceções de rota em modo debug, mas o debugger continua habilitado e o `/console` exposto; o ACH-11 segue aberto.
 
 ## 5. Hardening de segurança (Fase 5)
@@ -368,7 +371,7 @@ Um SLI é a razão de eventos bons sobre o total de eventos válidos:
 
 $$\text{SLI} = \frac{\text{eventos bons}}{\text{eventos válidos}}$$
 
-**SLI 1 — Disponibilidade de `/users/info`:** proporção de requisições a `/users/info` com status menor que 500.
+**SLI 1, disponibilidade de `/users/info`:** proporção de requisições a `/users/info` com status menor que 500.
 
 $$\text{SLI}_{\text{disp}} = \frac{\#\{\text{req a /users/info com status} < 500\}}{\#\{\text{req a /users/info}\}}$$
 
@@ -381,7 +384,7 @@ sum(rate(flask_http_request_duration_seconds_count{path="/users/info", status!~"
 sum(rate(flask_http_request_duration_seconds_count{path="/users/info"}[30d]))
 ```
 
-**SLI 2 — Latência:** proporção de requisições servidas em menos de 300 ms.
+**SLI 2, latência:** proporção de requisições servidas em menos de 300 ms.
 
 $$\text{SLI}_{\text{lat}} = \frac{\#\{\text{req com duração} < 300\,\text{ms}\}}{\#\{\text{req}\}}$$
 
@@ -405,7 +408,7 @@ Painéis:
 - **Latência p50/p95/p99:** `histogram_quantile(0.5, sum by (le) (rate(flask_http_request_duration_seconds_bucket[5m])))` (e idem para 0.95 e 0.99).
 - **Os 2 SLIs vs SLO:** as razões de 6.2, com linhas de meta em 99,5% e 95%.
 
-O dashboard é **provisionado e funcional** (diferencial, Fase 7 parte 2): datasource Prometheus e os painéis vêm de arquivos em `observability/grafana/provisioning/` e `observability/grafana/dashboards/coursesphere.json`, sem clique manual. O dashboard `CourseSphere — SRE` (uid `coursesphere-sre`) aparece no Grafana em `localhost:3001`. Alertas ligados aos SLOs ficam para uma próxima parte.
+O dashboard é **provisionado e funcional** (diferencial, Fase 7 parte 2): datasource Prometheus e os painéis vêm de arquivos em `observability/grafana/provisioning/` e `observability/grafana/dashboards/coursesphere.json`, sem clique manual. O dashboard `CourseSphere SRE` (uid `coursesphere-sre`) aparece no Grafana em `localhost:3001`. Alertas ligados aos SLOs ficam para uma próxima parte.
 
 ### 6.4 Riscos de disponibilidade e resiliência
 
@@ -494,7 +497,7 @@ Validado localmente, em containers, que cada comando roda: Semgrep gera SARIF v�
 
 ### 7.9 Teste de autorização das regras do RTDB (diferencial)
 
-Para prevenir regressão da correção do ACH-12, `security/rules-tests/` tem um teste automatizado e reprodutível das regras do Realtime Database, com o **Firebase Local Emulator Suite** e o `@firebase/rules-unit-testing`. Ele carrega o `database.rules.json` no emulador e afirma que o acesso de cliente é **negado** (leitura e escrita, não autenticado e autenticado), já que as regras são deny-all e todo acesso legítimo passa pelo backend via Admin SDK.
+`security/rules-tests/` tem um teste automatizado das regras do Realtime Database, com o **Firebase Local Emulator Suite** e o `@firebase/rules-unit-testing`. Se as regras voltarem ao modo de teste aberto, o teste quebra. Ele carrega o `database.rules.json` no emulador e afirma que o acesso de cliente é **negado** (leitura e escrita, não autenticado e autenticado), já que as regras são deny-all e todo acesso legítimo passa pelo backend via Admin SDK.
 
 - **Como rodar:** `cd security/rules-tests && npm install && npm run emulate` (que é `firebase emulators:exec --project demo-coursesphere --only database "npm test"`).
 - **Offline e sem segredos:** roda só no emulador, com um projeto `demo-*`; não toca o projeto real, não usa `credentials.json` e precisa apenas de Node e Java (o emulador). Dá para pôr na CI.

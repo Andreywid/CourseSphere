@@ -1,6 +1,6 @@
 {
   "uid": "coursesphere-sre",
-  "title": "CourseSphere — SRE",
+  "title": "CourseSphere SRE",
   "tags": [
     "coursesphere"
   ],
@@ -194,7 +194,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "SLI disponibilidade /users/info — SLO 99,5% / 30d",
+      "title": "SLI disponibilidade /users/info, SLO 99,5% / 30d",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -256,7 +256,7 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "SLI latência < 300ms — SLO 95% / 28d",
+      "title": "SLI latência < 300ms, SLO 95% / 28d",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
