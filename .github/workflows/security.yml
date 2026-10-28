@@ -36,7 +36,7 @@ jobs:
           backend frontend/src
       - name: Enviar SARIF para a aba Security
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
       - uses: actions/upload-artifact@v4
