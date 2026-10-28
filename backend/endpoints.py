@@ -48,7 +48,13 @@ logging.getLogger("werkzeug").setLevel(logging.WARNING)
 # Prometheus metrics at /metrics: request count and latency by path and status.
 # No auth, no rate limit. In production /metrics must sit on an internal network.
 # Os buckets de latência incluem 0,3s para casar com o SLO de 300ms.
-metrics = PrometheusMetrics(app, buckets=(
+# O label "path" usa o template da rota (ex.: /chats/<chat_id>), não o caminho cru:
+# com o caminho cru, cada chat_id ou URL inexistente criava séries que nunca são liberadas.
+# O nome da função vira o nome do label, então as queries do dashboard não mudam.
+def path(req):
+    return req.url_rule.rule if req.url_rule else "unmatched"
+
+metrics = PrometheusMetrics(app, group_by=path, buckets=(
     0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.3, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0,
 ))
 
