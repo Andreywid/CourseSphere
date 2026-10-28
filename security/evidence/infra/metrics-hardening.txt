@@ -1,0 +1,36 @@
+# Hardening do /metrics: agrupamento por rota e bloqueio no proxy (27/10/2026, horário de Brasília)
+# Backends com group_by=path (template da rota, ou "unmatched" quando não há rota).
+# Nginx com 'location = /metrics { return 404; }'; o Prometheus raspa backend1 e backend2 direto.
+
+== /metrics pela porta pública (Nginx) ==
+$ curl -s -o /dev/null -w '%{http_code}' localhost:5000/metrics
+404
+
+== Prometheus continua raspando os backends direto (rede interna) ==
+  http://backend1:5000/metrics  health=up  lastError=(vazio)
+  http://backend2:5000/metrics  health=up  lastError=(vazio)
+
+== Cardinalidade: URLs inexistentes caem em "unmatched" e não criam séries novas ==
+antes:
+  backend1: séries path="unmatched" = 19 | séries com o caminho cru = 0
+  backend2: séries path="unmatched" = 19 | séries com o caminho cru = 0
+depois de mais 6 URLs inexistentes (2x cada):
+  backend1: séries path="unmatched" = 19 | séries com o caminho cru = 0
+  backend2: séries path="unmatched" = 19 | séries com o caminho cru = 0
+
+== Rotas com parâmetro aparecem como template (o chat_id não vira label) ==
+  backend1: ['/chats/<chat_id>', '/chats/<chat_id>/messages', '/health', '/users/info', 'unmatched']
+  backend2: ['/chats/<chat_id>', '/chats/<chat_id>/messages', '/health', '/users/query', 'unmatched']
+
+== Baseline e borda ==
+  /health: 200
+  POST /users/query: 200
+  GET /users/info sem token: 401
+  frontend: 200
+  headers de segurança: 4 de 4
+  Access-Control-Allow-Origin no preflight: 1
+
+== Grafana e SLIs ==
+  Grafana: HTTP 200 | dashboard: ['CourseSphere SRE']
+  SLI disponibilidade /users/info: 1
+  SLI latência < 300 ms: 1

@@ -26,7 +26,7 @@ CourseSphere é uma aplicação web que ajuda estudantes a encontrar os melhores
 
 ### 2.2 Ambiente de teste
 
-O ambiente é isolado em Docker e definido em `docker-compose.yml`.
+O ambiente é isolado em Docker e definido em `docker-compose.yml`. A tabela abaixo é o ambiente da Fase 0; o estado final, com Nginx, duas instâncias do backend sob gunicorn, Redis, Prometheus e Grafana, está na seção 7.
 
 | Serviço | Base | Execução | Porta no host |
 |---|---|---|---|
@@ -45,10 +45,10 @@ O ambiente é isolado em Docker e definido em `docker-compose.yml`.
 - Análise manual guiada pelo OWASP Web Security Testing Guide (WSTG).
 - SAST: Semgrep e Bandit.
 - SCA: pip-audit (backend) e npm audit (frontend).
-- DAST: OWASP ZAP.
+- DAST (OWASP ZAP): não executado neste ciclo, ver seção 8.
 - Classificação alinhada ao OWASP Top 10 2021; severidade por CVSS 3.1.
 
-SAST (Semgrep e Bandit) e SCA (pip-audit e npm audit) foram executados em 23/10/2026; as saídas e o mapeamento nos achados estão em [`evidence/tools/README.md`](evidence/tools/README.md). O DAST (OWASP ZAP) ainda não foi executado. Os achados vêm de leitura de código e de observação do ambiente de baseline, e o ACH-11 foi apontado pelo Semgrep e pelo Bandit; os demais candidatos novos das ferramentas ainda não estão na seção 3.
+SAST (Semgrep e Bandit) e SCA (pip-audit e npm audit) foram executados em 23/10/2026; as saídas e o mapeamento nos achados estão em [`evidence/tools/README.md`](evidence/tools/README.md), junto com a triagem dos hits que não viraram achado. Os achados vêm de leitura de código e de observação do ambiente de baseline; o ACH-01, o ACH-10 e o ACH-11 também foram apontados pelas ferramentas.
 
 ### 2.4 Baseline (Fase 0)
 
@@ -115,7 +115,7 @@ Severidade "inerente" é o score do código como escrito, assumindo as condiçõ
   2. Executar `docker compose exec backend id` e `docker compose exec frontend id`.
   3. Observar `uid=0(root)` nas duas saídas.
 - **Evidência:** [`evidence/tools/semgrep.json`](evidence/tools/semgrep.json) (regra `missing-user`).
-- **Impacto de negócio:** um atacante que execute código no container o faz como root, o que piora o escape do container e a movimentação lateral. A ação de hardening fica para a fase seguinte.
+- **Impacto de negócio:** um atacante que execute código no container o faz como root, o que piora o escape do container e a movimentação lateral.
 - **Causa raiz:** as imagens não criam nem selecionam um usuário não-root.
 - **Situação:** Corrigido na Fase 5 (container não-root, seção 5.4).
 
@@ -154,7 +154,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Localização:** `backend/endpoints.py:28-31` (única validação: e-mail e senha não vazios) e `frontend/src/pages/signup/SignUp.tsx:16` (o botão só exige campos não vazios).
 - **Descrição:** no baseline, o cadastro aceitou uma senha numérica sequencial de 6 caracteres. Nem backend nem frontend aplicam política de senha além de "não vazia". O único limite efetivo vem do `firebase_admin`, que exige no mínimo 6 caracteres (`firebase_admin._auth_utils.validate_password`, verificado na versão instalada na imagem do backend).
 - **Observação:** 6 caracteres é o mínimo padrão do Firebase Authentication. O item só vira achado se houver política esperada acima disso. A política de senha configurável no projeto Firebase não foi verificada.
-- **Severidade:** a definir na Fase 2.
+- **Severidade:** não atribuída; ver a seção 8.
 
 ### 3.6 ACH-06: URL do RTDB fixa no código, acoplada ao projeto do autor do repositório (corrigido)
 
@@ -171,13 +171,13 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **Descrição:** `fetch` só rejeita a promessa em falha de rede; respostas HTTP 4xx e 5xx resolvem normalmente. Como o `.then` não examina o status, o toast de sucesso aparece mesmo quando o backend rejeita a gravação, e o `.catch` (linhas 171-173) só trata falha de rede. O erro do backend fica mascarado para o usuário.
 - **Mesmo padrão em outros fluxos** (sem verificação de `response.ok`): cadastro, em que `createUser` devolve o corpo da resposta (`api.ts:13-24`) e `performSignup` segue para o login (`:31-37`); leitura do perfil, em que `setProfileInfoIfLoggedIn` trata o corpo de erro como dados do perfil e não preenche nenhum campo, sem aviso (`:91-99`); e a query, em que `fetchCourseSphereResponse` exibe "Successfully retrieved bot response!" (`:195-197`). Os fluxos de chat e `/hash` verificam `response.ok` (`:248`, `:274`, `:293`, `:314`).
 - **Observado:** na primeira execução do baseline, antes da correção do ACH-06, `POST /users/info` retornou HTTP 400 e a interface exibiu o toast de sucesso. O log dessa execução não foi preservado.
-- **Severidade:** a definir na Fase 2.
+- **Severidade:** não atribuída; ver a seção 8.
 
 ### 3.8 ACH-08: `id_token` na URL de `GET /users/info` e registrado no log do Flask
 
 - **CVSS 3.1:** `CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:L/A:N` = **6.5 (Médio)**. Justificativa: credencial bearer exposta em query string e registrada em log; a exploração depende de alcançar o canal de vazamento dentro da janela de validade do token.
 - **CWE:** CWE-598 (uso de GET com dado sensível na query string) e CWE-532 (informação sensível em arquivo de log).
-- **OWASP Top 10 2021:** A02:2021 (falhas criptográficas).
+- **OWASP Top 10 2021:** A04:2021 (design inseguro), pelo CWE-598, e A09:2021 (falhas de registro e monitoramento), pelo CWE-532.
 - **Descrição:** até a correção (seção 4.3), o frontend enviava o ID token do Firebase na query string de um `GET`. O backend lia o token de `request.args`, e o log de acesso padrão do Flask grava a linha de requisição inteira, então o token ficava em texto claro no log do backend. As demais rotas autenticadas recebem o token no header `Authorization` (`/hash` e `/chats/...`) ou no corpo da requisição (`POST /users/info`, `api.ts:158`).
 - **Localização** (antes da correção): `frontend/src/api.ts:91` montava a URL com `?id_token=${idToken}`, e `backend/endpoints.py:58`, em `get_user_info`, lia `request.args.get("id_token")`; o token é verificado em `:59` (`Firebase.verify_id_token`). O backend não tem configuração de log própria; vale o log de acesso padrão.
 - **Reprodução:**
@@ -186,7 +186,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
   3. Observar o token inteiro na URL registrada no log.
   4. Os passos 1 a 3 valem para o código anterior à correção. Depois dela (seção 4.3), o log registra só `GET /users/info`, sem o token.
 - **Evidência:** [`evidence/baseline/backend-baseline.log`](evidence/baseline/backend-baseline.log), com o valor do token redigido antes de salvar (o valor original tinha 932 caracteres e prefixo de JWT). Ao repetir a reprodução, redigir o token antes de salvar qualquer log (ver [`evidence/README.md`](evidence/README.md)). Depois da correção: [`evidence/ACH-08/after-fix-no-token.log`](evidence/ACH-08/after-fix-no-token.log), com `GET /users/info` e `POST /users/info` em HTTP 200 e nenhuma URL com `?id_token=`.
-- **Impacto de negócio:** um token roubado (log, histórico do navegador, `Referer`) permite impersonar o usuário durante a janela de validade, lendo e alterando os dados dele.
+- **Impacto de negócio:** um token copiado de onde a URL fica registrada (o log de acesso do backend, confirmado no baseline; logs de proxy ou balanceador; ferramentas de APM; um export HAR do navegador) permite impersonar o usuário durante a janela de validade, lendo e alterando os dados dele.
 - **Causa raiz:** credencial na query string de uma requisição `GET`.
 - **Situação:** Corrigido e validado: corrigido no código em 25/10/2026 (seção 4.3) e validado com login real em 26/10/2026 ([`evidence/ACH-08/after-fix-no-token.log`](evidence/ACH-08/after-fix-no-token.log)).
 
@@ -249,7 +249,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 - **CVSS 3.1:** `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H` = **9.8 (Crítico)**. Justificativa: qualquer cliente sem credenciais lê, altera e apaga os dados do banco pela API REST, sem interação do usuário e sem privilégio algum.
 - **CWE:** CWE-284 (controle de acesso impróprio) e CWE-862 (autorização ausente).
 - **OWASP Top 10 2021:** A01:2021 (quebra de controle de acesso).
-- **Descrição:** as regras do Realtime Database estão no modo de teste padrão: `.read` e `.write` condicionados apenas a uma data (`now < 1795230000000`, 21/11/2026), sem checar autenticação. Até essa data qualquer pessoa pode ler e escrever no banco. O `databaseURL` é público (`frontend/src/firebaseConfig.ts:4`, entregue ao navegador), então um cliente não autenticado acessa o banco pela API REST, contornando o backend e toda a verificação de token. As regras não estavam no repositório; ficavam só no console do Firebase.
+- **Descrição:** as regras do Realtime Database estão em modo de teste: `.read` e `.write` condicionados apenas a uma data (`now < 1795230000000`, 21/11/2026), sem checar autenticação. Até essa data qualquer pessoa pode ler e escrever no banco. O `databaseURL` é público (`frontend/src/firebaseConfig.ts:4`, entregue ao navegador), então um cliente não autenticado acessa o banco pela API REST, contornando o backend e toda a verificação de token. O estado observado é o do projeto Firebase da avaliação; as regras do projeto do autor original não foram testadas, por falta de autorização. O defeito do repositório é não versionar regra nenhuma: elas ficavam só no console, então a segurança do banco dependia de configuração manual.
 - **Localização:** regras do RTDB do projeto Firebase, exportadas em [`evidence/ACH-12/database-rules.json`](evidence/ACH-12/database-rules.json); `databaseURL` em `frontend/src/firebaseConfig.ts:4`. Não é um defeito do código do backend: o Admin SDK (`backend/firebase.py`) ignora as regras.
 - **Reprodução (nível de relatório, sem dump):**
   1. Ler o `databaseURL` em `frontend/src/firebaseConfig.ts`, que é público.
@@ -263,7 +263,7 @@ O comportamento de `POST /hash` sem o header `Authorization` (HTTP 500 com a exc
 
 ## 4. Correções
 
-Correções aplicadas até agora. As demais entram aqui conforme forem feitas.
+Correções de causa raiz, na ordem em que foram feitas. O hardening está na seção 5 e o que ficou aberto, na seção 8.
 
 ### 4.1 ACH-06: URL do RTDB externalizada
 
@@ -347,9 +347,9 @@ Melhorias aplicadas além das três correções de causa raiz da seção 4. Cada
 - **Verificação:** `docker compose exec backend id` → `uid=10001(appuser)` e `frontend` → `uid=1000(node)`; os dois sobem, o backend lê os segredos e o baseline fica em 200. O `frontend/Dockerfile` (produção) recebeu `USER node`, mas não foi construído, porque o build de produção ainda falha nos erros de TypeScript herdados (seção 2.2); a mudança nele é só por consistência.
 - **Fecha:** ACH-01.
 
-### 5.5 Não feito agora: headers de segurança
+### 5.5 Headers de segurança
 
-CSP, HSTS, `X-Frame-Options` e `X-Content-Type-Options` protegem o frontend no navegador e ficam para a camada do Nginx (Fase 7), que é o lugar certo. Anotado aqui para não se perder.
+Ficaram fora desta fase de propósito: protegem no navegador, e o lugar deles é a borda. Foram feitos no Nginx na Fase 7 (seção 7.4); o HSTS espera a terminação TLS.
 
 ## 6. Observabilidade e confiabilidade (SRE)
 
@@ -360,7 +360,7 @@ Adicionado ao `backend/endpoints.py`:
 - **Logs estruturados em JSON (stdout)** com `python-json-logger`: uma linha JSON por requisição (`after_request`) com `request_id` (UUID por requisição), `method`, `path`, `route`, `status`, `latency_ms` e `asctime`. O log de acesso em texto do Werkzeug foi silenciado; a linha JSON é o registro da requisição. O `path` nunca inclui a query string, então nenhum token vaza.
 - **Eventos de autenticação:** o helper `verify_uid` loga `auth` com `result: success` (e o `uid`, nunca o token) ou `result: failure` (motivo genérico `invalid_or_expired_token`, sem o token nem a mensagem do provedor, que pode ecoar o token). O `app.logger.exception` do ACH-03 também sai em JSON; para falha de autenticação o traceback é limpo (`raise AuthError() from None` tira a mensagem do Firebase da pilha).
 - **`/health` (liveness):** `GET /health` → HTTP 200 `{"status": "ok"}`, sem autenticação e sem rate limit.
-- **`/metrics` (Prometheus):** `prometheus-flask-exporter`, sem autenticação e sem rate limit, com contagem e latência de requisição por rota e status. **Em produção, `/metrics` deve ficar em rede interna, não exposto publicamente.**
+- **`/metrics` (Prometheus):** `prometheus-flask-exporter`, sem autenticação e sem rate limit, com contagem e latência de requisição por rota e status. O label `path` é o template da rota (`/chats/<chat_id>`), não o caminho cru, e URLs sem rota caem em `unmatched`. Com o caminho cru, cada `chat_id` e cada URL inexistente criava cerca de 19 séries novas por instância, que nunca são liberadas: sem autenticação e sem rate limit nessas rotas, um scanner incharia a memória do backend e do Prometheus. Desde 27/10/2026 o `/metrics` também não sai pela porta pública (seção 7.3); o Prometheus raspa os backends pela rede interna. Evidência: [`evidence/infra/metrics-hardening.txt`](evidence/infra/metrics-hardening.txt).
 - **Verificado (26/10/2026):** nenhum token nos logs (inclusive um token malformado enviado de propósito), `/health` e `/metrics` em 200, e o baseline intacto.
 
 **Stack de observabilidade funcional (diferencial, ambiente de teste):** o `docker-compose.yml` sobe Prometheus (raspa `/metrics` de `backend1` e `backend2` direto, a cada 15s), Grafana (dashboard provisionado, seção 6.3) e Redis (store compartilhado do rate limiter, seção 6.4). Em produção seriam serviços gerenciados ou internos, não publicados.
@@ -412,8 +412,8 @@ O dashboard é **provisionado e funcional** (diferencial, Fase 7 parte 2): datas
 
 ### 6.4 Riscos de disponibilidade e resiliência
 
-- **Backend como ponto único.** Um só container Flask, sem balanceador nem réplica, servido pelo servidor de desenvolvimento do Flask: se ele cai, a API cai. **Resiliência:** rodar sob um WSGI de produção (gunicorn) com múltiplos workers atrás do Nginx, usar `/health` como liveness/readiness e, depois, mais de uma réplica.
-- **Rate limiter (Redis, diferencial).** O `flask-limiter` passou a usar o Redis como store compartilhado (`RATELIMIT_STORAGE_URI`), então o limite é **global** entre `backend1` e `backend2` (verificado: 5 requisições somadas passam e a 6ª dá HTTP 429, mesmo caindo na outra instância). **Ressalva honesta:** atrás do Nginx, `get_remote_address` enxerga o IP do proxy, então o limite hoje é global por endpoint para todos os clientes, não por cliente real; o limite por cliente exige confiar no `X-Forwarded-For` (ex.: `ProxyFix`). O Redis do ambiente de teste não tem persistência; em produção seria um Redis gerenciado.
+- **Backend como ponto único (resolvido na Fase 7).** Era um só container Flask no servidor de desenvolvimento; hoje são duas instâncias sob gunicorn atrás do Nginx (seção 7). Neste ambiente de teste, o Nginx e o host único continuam sendo pontos únicos, e o `/health` ainda não está ligado a um healthcheck do compose nem do Nginx.
+- **Rate limiter (Redis, diferencial).** O `flask-limiter` passou a usar o Redis como store compartilhado (`RATELIMIT_STORAGE_URI`), então o limite é **global** entre `backend1` e `backend2` (verificado: 5 requisições somadas passam e a 6ª dá HTTP 429, mesmo caindo na outra instância). **Ressalva:** atrás do Nginx, `get_remote_address` enxerga o IP do proxy, então o limite hoje é global por endpoint para todos os clientes, não por cliente real; o limite por cliente exige confiar no `X-Forwarded-For` (ex.: `ProxyFix`). O Redis do ambiente de teste não tem persistência; em produção seria um Redis gerenciado.
 - **Dependência do Firebase.** Auth e RTDB são externos; indisponibilidade ou latência do Firebase degrada login, perfil e chat. **Resiliência:** definir timeouts nas chamadas, manter o tratamento de erro genérico (ACH-03) e monitorar a taxa de erro e a latência das rotas que chamam o Firebase, com alerta ligado aos SLOs.
 
 ## 7. Infraestrutura e escalabilidade (Fase 7)
@@ -444,6 +444,8 @@ navegador (localhost:3000, frontend Vite)
 - `upstream` com `backend1:5000` e `backend2:5000`, round-robin (padrão), em `nginx/nginx.conf`. O Nginx (`nginx:1.27-alpine`) escuta na 5000 publicada.
 - Repassa `Host`, `Origin` e `Authorization` ao backend.
 - **Não** adiciona headers de CORS: o backend já cuida do CORS (flask-cors, Fase 5), e um header duplicado quebraria o navegador. Verificado: a resposta tem exatamente um `Access-Control-Allow-Origin`.
+- `/metrics` bloqueado no proxy: `location = /metrics { return 404; }` vem antes do `location /`. O Prometheus continua raspando `backend1` e `backend2` direto, então a métrica só existe na rede interna. Verificado: `localhost:5000/metrics` responde 404 e os dois targets seguem `up`.
+- Nota operacional: o compose monta o `nginx.conf` como arquivo único. Uma edição que grava um arquivo novo no lugar (outro inode) não chega ao container, e o `nginx -s reload` valida a configuração antiga sem avisar; para aplicar, `docker compose up -d --force-recreate nginx`.
 
 ### 7.4 Headers de segurança (os adiados da Fase 5)
 
@@ -466,7 +468,7 @@ for i in $(seq 1 20); do curl -s -i localhost:5000/health | grep -i ^X-Backend-I
 
 alterna `backend1` e `backend2`. Evidências em [`evidence/infra/`](evidence/README.md): `load-balancing.txt` (20 requisições, 10/10), `backend-instances.log` (logs JSON das duas instâncias) e `security-headers.txt` (headers via Nginx). O header `X-Backend-Instance` serve para demonstrar o balanceamento; em produção pode ser removido para não expor a topologia.
 
-### 7.6 Verificações (26/10/2026)
+### 7.6 Verificações (26 e 27/10/2026)
 
 - A stack sobe (`backend1`, `backend2`, `nginx`, `frontend`).
 - `curl localhost:5000/health` → HTTP 200 `{"status":"ok"}` com os quatro headers de segurança e um só `Access-Control-Allow-Origin`.
@@ -474,11 +476,11 @@ alterna `backend1` e `backend2`. Evidências em [`evidence/infra/`](evidence/REA
 - Via Nginx: `POST /users/query` → 200, `GET /users/info` sem token → 401, com `Bearer` inválido → 400; `frontend` em `localhost:3000` → 200.
 - Preflight de `localhost:3000` → 200 com um único `Access-Control-Allow-Origin`.
 - Nenhum token nas evidências nem nos logs das instâncias.
-- **Pendente:** o fluxo completo de login no navegador (login + salvar perfil + query) deve ser reconfirmado pelo usuário, já que o endpoint `localhost:5000` passou a ser o Nginx.
+- Login real no navegador pelo Nginx, em 27/10/2026: o Dashboard carregou com `GET /users/info` em 200, salvar o perfil deu `POST /users/info` em 200 e a query deu `POST /users/query` em 200, com os dois `POST /hash` também em 200. Os preflights passaram, cada chamada autenticada gerou um `auth success` no log, e as duas instâncias atenderam. O `OPTIONS /theactualbackendlink` com 404 é o ACH-04. Evidência: [`evidence/infra/login-via-nginx.log`](evidence/infra/login-via-nginx.log), com o `uid` redigido.
 
-### 7.7 A fazer na Fase 7 (próximas partes)
+### 7.7 Parte 2: Prometheus, Grafana e Redis (diferencial)
 
-Parte 2 (diferencial) concluída: Prometheus + Grafana provisionado + Redis para o rate limiter + bucket de 0,3 s (ver seção 6). Falta: terminação TLS + HSTS, alertas ligados aos SLOs, rate limit por cliente real (`X-Forwarded-For`/`ProxyFix`) e build de produção do frontend (hoje falha nos erros de TypeScript herdados).
+Concluída em 26/10/2026: Prometheus, Grafana provisionado, Redis para o rate limiter e bucket de 0,3 s (seção 6). O que ficou da Fase 7 (TLS com HSTS, alertas, rate limit por cliente e build de produção do frontend) está na seção 8.
 
 ### 7.8 CI de segurança (GitHub Actions, diferencial)
 
@@ -491,9 +493,9 @@ Parte 2 (diferencial) concluída: Prometheus + Grafana provisionado + Redis para
 
 **Modo report:** os jobs usam `continue-on-error`, então não bloqueiam o merge. A escolha é deliberada: o projeto tem achados herdados já rastreados (ACH-xx) e vulnerabilidades transitivas no frontend; bloquear deixaria a CI sempre vermelha. Para virar um gate bloqueante, basta remover o `continue-on-error` (ou usar `--error` no Semgrep). Nenhum job usa segredos, sobe a aplicação ou toca o Firebase: só instalam as ferramentas e analisam os arquivos do repositório.
 
-**Dependabot:** `.github/dependabot.yml` abre PRs semanais de atualização para `pip` (backend), `npm` (frontend), `github-actions` e `docker` (imagem base do backend).
+**Dependabot:** `.github/dependabot.yml` configura PRs semanais de atualização para `pip` (backend), `npm` (frontend), `github-actions` e `docker` (imagem base do backend). Em fork elas vêm desligadas; as atualizações de versão foram habilitadas em 27/10/2026.
 
-Validado localmente, em containers, que cada comando roda: Semgrep gera SARIF válido, pip-audit não achou vulnerabilidade nas bibliotecas do backend, Bandit lista os achados conhecidos e o npm audit sinaliza as dependências `high` do frontend. A CI em si só executa depois do push no GitHub.
+Validado localmente, em containers, que cada comando roda: Semgrep gera SARIF válido, pip-audit não achou vulnerabilidade nas bibliotecas do backend, Bandit lista os achados conhecidos e o npm audit sinaliza as dependências `high` do frontend. No GitHub, a primeira execução foi no push do `084fdfb` (run #1, verde). Verde aqui quer dizer que os jobs rodaram; em modo report, não quer dizer zero achados.
 
 ### 7.9 Teste de autorização das regras do RTDB (diferencial)
 
@@ -505,4 +507,15 @@ Validado localmente, em containers, que cada comando roda: Semgrep gera SARIF v�
 
 ## 8. Recomendações priorizadas
 
-_A preencher._
+Em ordem do que eu atacaria primeiro, com o que ficou aberto nas seções anteriores:
+
+1. Fechar o fail-open do `/users/query` (ACH-09). O frontend precisa aguardar o `getIdToken()` e mandar o campo `id_token`, e o backend deve responder 401 quando vier um token inválido, em vez de tratar o pedido como anônimo em silêncio.
+2. Contar o rate limit por cliente real. O Nginx já envia `X-Forwarded-For`; falta envolver o app com `ProxyFix(app.wsgi_app, x_for=1)`, confiando só no salto do Nginx. Hoje, atrás do proxy, todos os clientes dividem o mesmo contador (seção 6.4).
+3. Checar `response.ok` antes de mostrar sucesso em `saveProfileChanges` e nos outros fluxos do `api.ts` que repetem o padrão (ACH-07).
+4. Definir uma política de senha acima do mínimo de 6 caracteres do Firebase, na política de senha do Authentication e na validação do cadastro (ACH-05).
+5. Tirar do `UserChats` a chamada a `/theactualbackendlink`, ou ligar o componente a uma rota real de listagem de chats (ACH-04).
+6. Parametrizar as consultas de `blueprints/courses.py` antes de ativar o blueprint ou de corrigir o `db.py`, porque o defeito do `db.py` é o que hoje impede o efeito prático da injeção (ACH-10).
+7. Terminar a borda: TLS no Nginx com HSTS, e alertas por burn rate dos dois SLOs da seção 6.2.
+8. Rodar o DAST com OWASP ZAP contra o ambiente de teste. Ficou fora deste ciclo.
+9. Atualizar as dependências do frontend (42 pacotes com aviso no npm audit, a maioria transitiva) e corrigir os 15 erros de TypeScript que impedem o build de produção, para servir arquivos estáticos em vez do servidor de desenvolvimento do Vite.
+10. Transformar a CI em gate depois de triar o backlog: tirar o `continue-on-error` e falhar em achado novo de severidade alta.

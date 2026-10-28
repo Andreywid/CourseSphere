@@ -30,6 +30,8 @@ Esta pasta guarda os prints e logs que sustentam o [relatório](../report.md).
 | `infra/security-headers.txt` | `curl -i localhost:5000/health` via Nginx, com os quatro headers de segurança e um único `Access-Control-Allow-Origin`. | Seção 7.4 | Capturado em 26/10/2026 |
 | `infra/rate-limit-global.txt` | 7 requisições a `/users/create` alternando `backend1`/`backend2`: 5 passam somadas e a 6ª dá HTTP 429 (limite global via Redis, compartilhado entre as instâncias). | Seção 6.4 | Capturado em 26/10/2026 |
 | `infra/grafana-dashboard.png` | Dashboard "CourseSphere SRE" no Grafana (range de 5 min): o painel de erro 5xx plano em 0% com o eixo em 0-100%, os 2 SLIs em 100%, latência e taxa de requisição. | Seção 6.3 | Capturado em 27/10/2026 |
+| `infra/metrics-hardening.txt` | `/metrics` com 404 pela porta pública (Nginx) e os dois targets do Prometheus `up`; URLs inexistentes caindo em `unmatched` sem criar séries novas; `/chats/<chat_id>` como template; baseline, headers, Grafana e SLIs funcionando. | Seções 6.1 e 7.3 | Capturado em 27/10/2026 |
+| `infra/login-via-nginx.log` | Login real no navegador pelo Nginx depois da Fase 7: `GET /users/info`, `POST /users/info`, `POST /users/query` e `POST /hash` em 200, preflights em 200 e um `auth success` por chamada autenticada, nas duas instâncias. `uid` redigido; o token não aparece. | Seção 7.6 | Capturado em 27/10/2026 (horários do log em UTC) |
 
 ## Antes de salvar um arquivo
 
